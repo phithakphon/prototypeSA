@@ -13,17 +13,14 @@ function ResignedEmployees() {
   const toast = useToast()
   const { data, loading, error, reload } = useApi('/employees/resigned')
   const [q, setQ] = useState('')
-  const [department, setDepartment] = useState('')
   const [reinstating, setReinstating] = useState(null)
   const [busy, setBusy] = useState(false)
 
   const all = data?.employees || []
-  const departments = [...new Set(all.map((e) => e.department))]
   const term = q.trim().toLowerCase()
   const rows = all.filter(
     (e) =>
-      (!department || e.department === department) &&
-      (!term || `${e.employeeCode} ${fullName(e)} ${e.department} ${e.resignationReason || ''}`.toLowerCase().includes(term)),
+      (!term || `${e.employeeCode} ${fullName(e)} ${e.resignationReason || ''}`.toLowerCase().includes(term)),
   )
 
   async function reinstate() {
@@ -48,11 +45,7 @@ function ResignedEmployees() {
       <p className="page-desc">ข้อมูลและประวัติของพนักงานที่ลาออกยังคงถูกเก็บไว้ในระบบ</p>
       <section className="panel">
         <div className="toolbar" role="search">
-          <input className="input" type="search" placeholder="ค้นหาด้วยรหัส ชื่อ แผนก หรือเหตุผล" aria-label="ค้นหาพนักงานที่ลาออก" value={q} onChange={(e) => setQ(e.target.value)} />
-          <select className="select" aria-label="กรองตามแผนก" value={department} onChange={(e) => setDepartment(e.target.value)}>
-            <option value="">ทุกแผนก</option>
-            {departments.map((d) => <option key={d} value={d}>{d}</option>)}
-          </select>
+          <input className="input" type="search" placeholder="ค้นหาด้วยรหัส ชื่อ หรือเหตุผล" aria-label="ค้นหาพนักงานที่ลาออก" value={q} onChange={(e) => setQ(e.target.value)} />
         </div>
         {loading && !data ? (
           <Loading />
@@ -67,7 +60,7 @@ function ResignedEmployees() {
                 <tr>
                   <th scope="col">รหัสพนักงาน</th>
                   <th scope="col">ชื่อ-นามสกุล</th>
-                  <th scope="col">แผนก / ตำแหน่ง</th>
+                  <th scope="col">ตำแหน่ง</th>
                   <th scope="col">วันที่ลาออก</th>
                   <th scope="col">เหตุผล</th>
                   <th scope="col"><span className="sr-only">การดำเนินการ</span></th>
@@ -78,7 +71,7 @@ function ResignedEmployees() {
                   <tr key={e.id}>
                     <td data-label="รหัสพนักงาน" className="mono"><Link to={`/employees/${e.id}`}>{e.employeeCode}</Link></td>
                     <td data-label="ชื่อ-นามสกุล">{fullName(e)}</td>
-                    <td data-label="แผนก / ตำแหน่ง">{e.department} / {e.position}</td>
+                    <td data-label="ตำแหน่ง">{e.position}</td>
                     <td data-label="วันที่ลาออก">{formatDate(e.resignationDate)}</td>
                     <td data-label="เหตุผล">{e.resignationReason || '-'}</td>
                     <td className="actions-cell">

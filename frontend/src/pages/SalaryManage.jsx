@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Wallet } from '../components/icons'
 import Modal from '../components/Modal'
+import Notice from '../components/Notice'
 import { Loading, ErrorState, Empty } from '../components/States'
 import { useToast } from '../components/toast'
 import { useApi } from '../useApi'
@@ -87,7 +88,7 @@ function SalaryDialog({ employee, onClose, onChanged }) {
           )}
 
           {resigned && !editing ? (
-            <p className="notice">พนักงานคนนี้ลาออกแล้ว จึงไม่สามารถเพิ่มเงินเดือนใหม่ได้</p>
+            <Notice variant="warning">พนักงานคนนี้ลาออกแล้ว จึงไม่สามารถเพิ่มเงินเดือนใหม่ได้</Notice>
           ) : (
             <form onSubmit={submit} noValidate>
               <h3 className="form-section">{editing ? 'แก้ไขรายการเงินเดือน' : 'เพิ่มรายการเงินเดือนใหม่'}</h3>
@@ -128,7 +129,7 @@ function SalaryManage() {
 
   const term = q.trim().toLowerCase()
   const rows = (data?.employees || []).filter(
-    (e) => !term || `${e.employeeCode} ${e.firstName} ${e.lastName} ${e.department}`.toLowerCase().includes(term),
+    (e) => !term || `${e.employeeCode} ${e.firstName} ${e.lastName}`.toLowerCase().includes(term),
   )
 
   const amounts = (data?.employees || []).filter((e) => e.status === 'active' && e.currentAmount != null).map((e) => e.currentAmount)
@@ -162,7 +163,7 @@ function SalaryManage() {
       )}
       <section className="panel">
         <div className="toolbar" role="search">
-          <input className="input" type="search" placeholder="ค้นหาด้วยรหัสพนักงาน ชื่อ หรือแผนก" aria-label="ค้นหาพนักงาน" value={q} onChange={(e) => setQ(e.target.value)} />
+          <input className="input" type="search" placeholder="ค้นหาด้วยรหัสพนักงานหรือชื่อ" aria-label="ค้นหาพนักงาน" value={q} onChange={(e) => setQ(e.target.value)} />
         </div>
         {loading && !data ? (
           <Loading />
@@ -177,7 +178,6 @@ function SalaryManage() {
                 <tr>
                   <th scope="col">รหัสพนักงาน</th>
                   <th scope="col">ชื่อ-นามสกุล</th>
-                  <th scope="col">แผนก</th>
                   <th scope="col">สถานะ</th>
                   <th scope="col">เงินเดือนปัจจุบัน</th>
                   <th scope="col"><span className="sr-only">การดำเนินการ</span></th>
@@ -188,7 +188,6 @@ function SalaryManage() {
                   <tr key={e.id}>
                     <td data-label="รหัสพนักงาน" className="mono">{e.employeeCode}</td>
                     <td data-label="ชื่อ-นามสกุล">{fullName(e)}</td>
-                    <td data-label="แผนก">{e.department}</td>
                     <td data-label="สถานะ"><span className={`badge ${STATUS[e.status].cls}`}>{STATUS[e.status].label}</span></td>
                     <td data-label="เงินเดือนปัจจุบัน">{formatMoney(e.currentAmount)}</td>
                     <td className="actions-cell">

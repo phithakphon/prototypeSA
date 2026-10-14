@@ -1,9 +1,12 @@
-import { useEffect, useState } from 'react'
-import { Outlet, useLocation } from 'react-router-dom'
+import { useEffect, useRef, useState } from 'react'
+import { Outlet, useLocation, useNavigate } from 'react-router-dom'
+import { Info } from 'lucide-react'
+import Notice from './Notice'
 import Sidebar from './Sidebar'
-import { ChevronDown, Info } from './icons'
-import { USE_MOCK } from '../api'
+import ProfileMenu from './ProfileMenu'
 import { useAuth } from '../auth/auth'
+import { USE_MOCK } from '../api'
+import usePointerEffects from '../hooks/usePointerEffects'
 import './ui.css'
 import './AppLayout.css'
 
@@ -11,8 +14,10 @@ function AppLayout() {
   const [collapsed, setCollapsed] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
   const location = useLocation()
-  const { user } = useAuth()
-  const firstName = user.displayName.split(' ')[0]
+  const navigate = useNavigate()
+  const { user, logout } = useAuth()
+  const shellRef = useRef(null)
+  usePointerEffects(shellRef, null, { viewport: true })
 
   useEffect(() => {
     if (!mobileOpen) return undefined
@@ -22,7 +27,15 @@ function AppLayout() {
   }, [mobileOpen])
 
   return (
-    <div className={`app-shell${collapsed ? ' sidebar-collapsed' : ''}`}>
+    <div className={`app-shell${collapsed ? ' sidebar-collapsed' : ''}`} ref={shellRef}>
+      {/* decorative background (pointer-events: none) */}
+      <div className="app-deco" aria-hidden="true">
+        <span className="deco-dots" />
+        <span className="deco-blob" />
+        <span className="deco-waves" />
+        <span className="deco-glow" />
+      </div>
+
       <Sidebar
         collapsed={collapsed}
         onToggleCollapse={() => setCollapsed((v) => !v)}
@@ -47,21 +60,25 @@ function AppLayout() {
           >
             <span /><span /><span />
           </button>
-          <div className="profile">
-            <span className="avatar" aria-hidden="true">{firstName.charAt(0)}</span>
-            <div className="profile-text">
-              <strong>สวัสดี, คุณ{firstName}</strong>
-              <span>{user.roleLabel}</span>
-            </div>
-            <ChevronDown className="profile-chevron" width={16} height={16} />
-          </div>
+          <p className="topbar-title">
+            <strong>บริษัท ศุภชัยสอบบัญชี</strong>
+            <span>ระบบบริหารจัดการข้อมูลพนักงาน</span>
+          </p>
+          <ProfileMenu
+            user={user}
+            onLogout={() => {
+              logout()
+              navigate('/login')
+            }}
+          />
         </header>
+
         {USE_MOCK && (
-          <div className="demo-banner" role="note">
-            <Info width={16} height={16} />
-            <span>โหมดสาธิต: ข้อมูลทั้งหมดเป็นข้อมูลจำลองและจะรีเซ็ตเมื่อรีเฟรชหน้า การจำกัดสิทธิ์ในโหมดนี้ใช้แสดงตัวอย่างเท่านั้น ไม่ใช่ระบบความปลอดภัยจริง</span>
-          </div>
+          <Notice variant="warning" icon={Info} title="โหมดสาธิต" className="demo-notice">
+            ข้อมูลทั้งหมดเป็นข้อมูลจำลองและจะรีเซ็ตเมื่อรีเฟรชหน้า การจำกัดสิทธิ์ในโหมดนี้ใช้แสดงตัวอย่างเท่านั้น ไม่ใช่ระบบความปลอดภัยจริง
+          </Notice>
         )}
+
         <div className="page" key={location.pathname}>
           <Outlet />
         </div>

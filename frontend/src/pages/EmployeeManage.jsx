@@ -1,16 +1,18 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Plus, Pencil, UserMinus, Eye } from '../components/icons'
+import { BriefcaseBusiness, Save, UserPlus, UserRound, X } from 'lucide-react'
 import Modal from '../components/Modal'
+import Notice from '../components/Notice'
 import ConfirmDialog from '../components/ConfirmDialog'
 import { Loading, ErrorState, Empty } from '../components/States'
 import { useToast } from '../components/toast'
 import { useApi } from '../useApi'
 import { api } from '../api'
-import { formatDate, fullName, todayIso, STATUS } from '../format'
+import { DEPARTMENT, formatDate, fullName, todayIso, STATUS } from '../format'
 
 const EMPTY_FORM = {
-  employeeCode: '', firstName: '', lastName: '', department: '', position: '',
+  employeeCode: '', firstName: '', lastName: '', department: DEPARTMENT, position: '',
   startDate: '', nationalId: '', phone: '', email: '', address: '',
 }
 
@@ -30,7 +32,8 @@ function EmployeeForm({ employee, onClose, onSaved }) {
   const editing = Boolean(employee)
   const [form, setForm] = useState(() => {
     if (!employee) return EMPTY_FORM
-    return Object.fromEntries(Object.keys(EMPTY_FORM).map((k) => [k, employee[k] ?? '']))
+    // department is fixed: the system serves a single department
+    return { ...Object.fromEntries(Object.keys(EMPTY_FORM).map((k) => [k, employee[k] ?? ''])), department: DEPARTMENT }
   })
   const [errors, setErrors] = useState({})
   const [formError, setFormError] = useState('')
@@ -49,6 +52,8 @@ function EmployeeForm({ employee, onClose, onSaved }) {
         aria-describedby={errors[k] ? `f-${k}-err` : undefined}
         max={opts.type === 'date' ? todayIso() : undefined}
         inputMode={opts.inputMode}
+        readOnly={opts.readOnly}
+        aria-readonly={opts.readOnly ? 'true' : undefined}
       />
     </Field>
   )
@@ -69,22 +74,42 @@ function EmployeeForm({ employee, onClose, onSaved }) {
       setErrors(err.errors)
       setFormError(err.message)
       setSaving(false)
+      // bring the first invalid field into view (the form body scrolls)
+      const first = Object.keys(err.errors || {})[0]
+      if (first) requestAnimationFrame(() => document.getElementById(`f-${first}`)?.focus())
     }
   }
 
   return (
-    <Modal title={editing ? 'แก้ไขข้อมูลพนักงาน' : 'เพิ่มพนักงานใหม่'} onClose={onClose} wide>
-      <form onSubmit={submit} noValidate>
-        {formError && <p className="form-alert" role="alert">{formError}</p>}
+    <Modal
+      title={editing ? 'แก้ไขข้อมูลพนักงาน' : 'เพิ่มพนักงานใหม่'}
+      icon={editing ? Pencil : UserPlus}
+      onClose={onClose}
+      closeOnBackdrop={false}
+      wide
+      footer={
+        <>
+          <button type="button" className="btn btn-ghost" onClick={onClose} disabled={saving}>
+            <X size={20} strokeWidth={1.75} aria-hidden="true" /> ยกเลิก
+          </button>
+          <button type="submit" form="employee-form" className="btn btn-primary" disabled={saving}>
+            <Save size={20} strokeWidth={1.75} aria-hidden="true" /> {saving ? 'กำลังบันทึก...' : 'บันทึก'}
+          </button>
+        </>
+      }
+    >
+      <form id="employee-form" onSubmit={submit} noValidate>
+        {formError && <Notice variant="error" className="form-alert">{formError}</Notice>}
+        <h3 className="form-section"><BriefcaseBusiness size={22} strokeWidth={1.75} aria-hidden="true" /> ข้อมูลการทำงาน</h3>
         <div className="form-grid">
           {input('employeeCode', 'รหัสพนักงาน', { required: true })}
           {input('startDate', 'วันที่เริ่มงาน', { required: true, type: 'date' })}
           {input('firstName', 'ชื่อ', { required: true })}
           {input('lastName', 'นามสกุล', { required: true })}
-          {input('department', 'แผนก', { required: true })}
+          {input('department', 'แผนก', { readOnly: true })}
           {input('position', 'ตำแหน่ง', { required: true })}
         </div>
-        <h3 className="form-section">ข้อมูลส่วนบุคคล (ไม่บังคับ)</h3>
+        <h3 className="form-section"><UserRound size={22} strokeWidth={1.75} aria-hidden="true" /> ข้อมูลส่วนบุคคล (ไม่บังคับ)</h3>
         <div className="form-grid">
           {input('nationalId', 'เลขบัตรประชาชน', { inputMode: 'numeric' })}
           {input('phone', 'เบอร์โทรศัพท์', { type: 'tel' })}
@@ -94,10 +119,6 @@ function EmployeeForm({ employee, onClose, onSaved }) {
               <textarea id="f-address" className="textarea" value={form.address} onChange={set('address')} />
             </Field>
           </div>
-        </div>
-        <div className="modal-actions">
-          <button type="button" className="btn btn-ghost" onClick={onClose} disabled={saving}>ยกเลิก</button>
-          <button type="submit" className="btn btn-primary" disabled={saving}>{saving ? 'กำลังบันทึก...' : 'บันทึก'}</button>
         </div>
       </form>
     </Modal>
@@ -219,7 +240,7 @@ function EmployeeManage() {
 
       <section className="panel">
         <div className="toolbar" role="search">
-          <input className="input" type="search" placeholder="ค้นหาด้วยรหัสพนักงาน ชื่อ หรือแผนก" aria-label="ค้นหาพนักงาน" value={q} onChange={(e) => setQ(e.target.value)} />
+          <input className="input" type="search" placeholder="ค้นหาด้วยรหัสพนักงานหรือชื่อ" aria-label="ค้นหาพนักงาน" value={q} onChange={(e) => setQ(e.target.value)} />
         </div>
 
         {loading && !data ? (
@@ -235,7 +256,6 @@ function EmployeeManage() {
                 <tr>
                   <th scope="col">รหัสพนักงาน</th>
                   <th scope="col">ชื่อ-นามสกุล</th>
-                  <th scope="col">แผนก</th>
                   <th scope="col">ตำแหน่ง</th>
                   <th scope="col">สถานะ</th>
                   <th scope="col"><span className="sr-only">การดำเนินการ</span></th>
@@ -246,7 +266,6 @@ function EmployeeManage() {
                   <tr key={e.id}>
                     <td data-label="รหัสพนักงาน" className="mono">{e.employeeCode}</td>
                     <td data-label="ชื่อ-นามสกุล">{fullName(e)}</td>
-                    <td data-label="แผนก">{e.department}</td>
                     <td data-label="ตำแหน่ง">{e.position}</td>
                     <td data-label="สถานะ"><span className={`badge ${STATUS[e.status].cls}`}>{STATUS[e.status].label}</span></td>
                     <td className="actions-cell">

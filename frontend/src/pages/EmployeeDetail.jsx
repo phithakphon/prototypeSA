@@ -1,6 +1,8 @@
 import { Link, useParams } from 'react-router-dom'
-import { Lock } from '../components/icons'
+import { ArrowLeft, BriefcaseBusiness, History, Lock, UserRound, Wallet } from 'lucide-react'
+import Notice from '../components/Notice'
 import { Loading, ErrorState, Empty } from '../components/States'
+import StatusBadge from '../components/StatusBadge'
 import { useApi } from '../useApi'
 import { useAuth } from '../auth/auth'
 import { formatDate, formatMoney, fullName, STATUS } from '../format'
@@ -12,11 +14,13 @@ const Item = ({ label, children }) => (
   </div>
 )
 
+const TitleIcon = ({ icon: Icon }) => <Icon size={26} strokeWidth={1.75} aria-hidden="true" />
+
 function SalarySection({ id }) {
   const { data, loading, error, reload } = useApi(`/employees/${id}/salaries`)
   return (
     <section className="panel" aria-labelledby="salary-title">
-      <h2 id="salary-title" className="panel-title">ข้อมูลเงินเดือน</h2>
+      <h2 id="salary-title" className="panel-title"><TitleIcon icon={Wallet} /> ข้อมูลเงินเดือน</h2>
       {loading ? (
         <Loading />
       ) : error ? (
@@ -49,8 +53,11 @@ function SalarySection({ id }) {
   )
 }
 
-function EmployeeDetail() {
-  const { id } = useParams()
+// `mine`: the signed-in employee's own history page (/employees/history for self-only roles).
+// It shows only their own record: no back link to the search page and no salary section.
+function EmployeeDetail({ employeeId, mine = false }) {
+  const params = useParams()
+  const id = employeeId ?? params.id
   const { can } = useAuth()
   const { data, loading, error, reload } = useApi(`/employees/${id}`)
 
@@ -58,23 +65,30 @@ function EmployeeDetail() {
   if (error) return <ErrorState error={error} onRetry={reload} />
 
   const { employee: e, confidentialVisible, isSelf, history } = data
-  const showSalary = isSelf || can('salary:manage')
+  // finance manages salaries; HR may view them (read-only); owners see their own on other pages
+  const showSalary = !mine && (isSelf || can('salary:manage') || can('salary:view'))
 
   return (
     <div className="stack">
       <div>
-        <Link className="back-link" to="/employees/search">← กลับไปค้นหาพนักงาน</Link>
+        {mine ? (
+          <p className="eyebrow-label">ประวัติของฉัน</p>
+        ) : (
+          <Link className="back-link" to="/employees/search">
+            <ArrowLeft size={20} strokeWidth={1.75} aria-hidden="true" /> กลับไปค้นหาพนักงาน
+          </Link>
+        )}
         <div className="profile-head">
           <span className="profile-avatar" aria-hidden="true">{e.firstName.charAt(0)}</span>
           <div>
             <h1>{fullName(e)}</h1>
-            <span className={`badge ${STATUS[e.status].cls}`}>{STATUS[e.status].label}</span>
+            <StatusBadge status={e.status} />
           </div>
         </div>
       </div>
 
       <section className="panel" aria-labelledby="info-title">
-        <h2 id="info-title" className="panel-title">ข้อมูลพนักงาน</h2>
+        <h2 id="info-title" className="panel-title"><TitleIcon icon={BriefcaseBusiness} /> ข้อมูลพนักงาน</h2>
         <dl className="detail-grid">
           <Item label="รหัสพนักงาน">{e.employeeCode}</Item>
           <Item label="ชื่อ-นามสกุล">{fullName(e)}</Item>
@@ -87,7 +101,7 @@ function EmployeeDetail() {
       </section>
 
       <section className="panel" aria-labelledby="personal-title">
-        <h2 id="personal-title" className="panel-title">ข้อมูลส่วนบุคคล</h2>
+        <h2 id="personal-title" className="panel-title"><TitleIcon icon={UserRound} /> ข้อมูลส่วนบุคคล</h2>
         {confidentialVisible ? (
           <dl className="detail-grid">
             <Item label="เลขบัตรประชาชน">{e.nationalId}</Item>
@@ -97,26 +111,30 @@ function EmployeeDetail() {
             {e.status === 'resigned' && <Item label="เหตุผลการลาออก">{e.resignationReason}</Item>}
           </dl>
         ) : (
-          <p className="notice">
-            <Lock width={18} height={18} /> ข้อมูลส่วนบุคคลเป็นความลับ ดูได้เฉพาะเจ้าของข้อมูลและผู้จัดการแผนกตรวจสอบบัญชี
-          </p>
+          <Notice icon={Lock}>
+            ข้อมูลส่วนบุคคลเป็นความลับ ดูได้เฉพาะเจ้าของข้อมูล ผู้จัดการ ฝ่ายบุคคล และผู้บริหาร
+          </Notice>
         )}
       </section>
 
       {showSalary ? (
         <SalarySection id={e.id} />
       ) : (
-        <section className="panel" aria-labelledby="salary-title">
-          <h2 id="salary-title" className="panel-title">ข้อมูลเงินเดือน</h2>
-          <p className="masked-value" aria-label="ข้อมูลถูกปกปิด">฿ ••,•••.••</p>
-          <p className="notice">
-            <Lock width={18} height={18} /> ข้อมูลเงินเดือนเป็นความลับ ดูได้เฉพาะเจ้าของข้อมูลและฝ่ายการเงิน
-          </p>
-        </section>
+        !mine && (
+          <section className="panel" aria-labelledby="salary-title">
+            <h2 id="salary-title" className="panel-title"><TitleIcon icon={Wallet} /> ข้อมูลเงินเดือน</h2>
+            <p className="masked-value" aria-label="ข้อมูลถูกปกปิด">฿ ••,•••.••</p>
+            <Notice icon={Lock}>
+              ข้อมูลเงินเดือนเป็นความลับ ดูได้เฉพาะเจ้าของข้อมูล ฝ่ายการเงิน และฝ่ายบุคคล
+            </Notice>
+          </section>
+        )
       )}
 
       <section className="panel" aria-labelledby="history-title">
-        <h2 id="history-title" className="panel-title">ประวัติพนักงาน</h2>
+        <h2 id="history-title" className="panel-title">
+          <TitleIcon icon={History} /> {mine ? 'ประวัติการทำงาน' : 'ประวัติพนักงาน'}
+        </h2>
         {history.length === 0 ? (
           <Empty text="ยังไม่มีประวัติ" />
         ) : (
@@ -126,7 +144,7 @@ function EmployeeDetail() {
                 <span className="timeline-dot" aria-hidden="true" />
                 <div className="timeline-card">
                   <p className="timeline-title">{h.description}</p>
-                  <time className="timeline-date">{formatDate(h.eventDate)}</time>
+                  <time className="timeline-date" dateTime={h.eventDate}>{formatDate(h.eventDate)}</time>
                 </div>
               </li>
             ))}

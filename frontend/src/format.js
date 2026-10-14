@@ -17,6 +17,9 @@ export const todayIso = () => {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
 }
 
+// The system is built for this one department only.
+export const DEPARTMENT = 'ตรวจสอบบัญชี'
+
 export const fullName = (e) => `${e.firstName} ${e.lastName}`
 
 export const STATUS = {

@@ -28,6 +28,16 @@ async function loginAndOpen(username, linkName) {
   return user
 }
 
+const TOKENS = { manager1: 1, employee1: 2, hr1: 3, finance1: 4, executive1: 5 }
+async function openAs(username, path) {
+  localStorage.setItem('ems_token', `mock-token-${TOKENS[username]}`)
+  return render(
+    <MemoryRouter initialEntries={[path]}>
+      <AppRoutes />
+    </MemoryRouter>,
+  )
+}
+
 beforeEach(() => {
   resetDb()
   localStorage.clear()
@@ -77,9 +87,9 @@ describe('UC-01 login', () => {
 describe('dashboard', () => {
   it('renders statistics, recent employees and announcements from mock data', async () => {
     await loginAndOpen('hr1')
-    expect(screen.getByLabelText('39 คน')).toBeInTheDocument()
-    expect(screen.getByLabelText('35 คน')).toBeInTheDocument()
-    expect(screen.getByLabelText('4 คน')).toBeInTheDocument()
+    expect(screen.getByLabelText('20 คน')).toBeInTheDocument()
+    expect(screen.getByLabelText('17 คน')).toBeInTheDocument()
+    expect(screen.getByLabelText('3 คน')).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'พนักงานล่าสุดที่เพิ่มในระบบ' })).toBeInTheDocument()
     expect(screen.getByText('ประกาศวันหยุดประจำเดือนตุลาคม')).toBeInTheDocument()
   })
@@ -87,13 +97,15 @@ describe('dashboard', () => {
 
 describe('role-based navigation (demo simulation)', () => {
   it.each([
-    ['manager1', ['จัดการข้อมูลพนักงาน', 'พนักงานที่ลาออก'], ['จัดการเงินเดือน']],
-    ['finance1', ['จัดการเงินเดือน'], ['จัดการข้อมูลพนักงาน', 'พนักงานที่ลาออก']],
-    ['employee1', [], ['จัดการข้อมูลพนักงาน', 'จัดการเงินเดือน', 'พนักงานที่ลาออก']],
+    ['manager1', ['ค้นหาข้อมูลพนักงาน', 'จัดการข้อมูลพนักงาน', 'พนักงานที่ลาออก'], ['จัดการเงินเดือน']],
+    ['hr1', ['ค้นหาข้อมูลพนักงาน'], ['จัดการข้อมูลพนักงาน', 'จัดการเงินเดือน', 'พนักงานที่ลาออก']],
+    ['finance1', ['ค้นหาข้อมูลพนักงาน', 'จัดการเงินเดือน'], ['จัดการข้อมูลพนักงาน', 'พนักงานที่ลาออก']],
+    ['executive1', ['ค้นหาข้อมูลพนักงาน'], ['จัดการข้อมูลพนักงาน', 'จัดการเงินเดือน', 'พนักงานที่ลาออก']],
+    ['employee1', [], ['ค้นหาข้อมูลพนักงาน', 'จัดการข้อมูลพนักงาน', 'จัดการเงินเดือน', 'พนักงานที่ลาออก']],
   ])('%s sees the right menu', async (username, shown, hidden) => {
     await loginAndOpen(username)
     const nav = within(screen.getByRole('navigation', { name: 'เมนูนำทาง' }))
-    for (const name of ['หน้าหลัก', 'ค้นหาข้อมูลพนักงาน', 'ประวัติพนักงาน', 'ผลการประเมิน', ...shown]) {
+    for (const name of ['หน้าหลัก', 'ประวัติพนักงาน', 'ผลการประเมิน', ...shown]) {
       expect(nav.getByRole('link', { name })).toBeInTheDocument()
     }
     for (const name of hidden) expect(nav.queryByRole('link', { name })).not.toBeInTheDocument()
@@ -123,14 +135,57 @@ describe('UC-02 / UC-03 search and profile', () => {
     expect(await screen.findByText('ไม่พบพนักงานที่ตรงกับเงื่อนไขการค้นหา')).toBeInTheDocument()
   })
 
-  it('opens a profile with history, masking confidential data for HR', async () => {
+  it('HR sees the full personal information and the salary amount, read-only', async () => {
     const user = await loginAndOpen('hr1', 'ค้นหาข้อมูลพนักงาน')
     await user.type(await screen.findByLabelText('ค้นหาพนักงาน'), 'E105')
     await user.click(await screen.findByRole('link', { name: /ดูรายละเอียด/ }))
     expect(await screen.findByRole('heading', { name: 'สมชาย ใจดี' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'ประวัติพนักงาน' })).toBeInTheDocument()
+    expect(screen.getByText('เลขบัตรประชาชน')).toBeInTheDocument()
+    expect(screen.getByText(/^\d{13}$/)).toBeInTheDocument() // unmasked
+    expect(screen.queryByText(/ข้อมูลส่วนบุคคลเป็นความลับ/)).not.toBeInTheDocument()
+    expect(await screen.findByText(/55,000/)).toBeInTheDocument() // real salary amount
+    expect(screen.queryByLabelText('ข้อมูลถูกปกปิด')).not.toBeInTheDocument()
+    // read-only: no edit / add controls for salary
+    expect(screen.queryByRole('button', { name: /แก้ไข|เพิ่ม|ลบ/ })).not.toBeInTheDocument()
+  })
+
+  it('executive sees personal information but the salary stays masked', async () => {
+    const user = await loginAndOpen('executive1', 'ค้นหาข้อมูลพนักงาน')
+    await user.type(await screen.findByLabelText('ค้นหาพนักงาน'), 'E105')
+    await user.click(await screen.findByRole('link', { name: /ดูรายละเอียด/ }))
+    expect(await screen.findByRole('heading', { name: 'สมชาย ใจดี' })).toBeInTheDocument()
+    expect(screen.getByText(/^\d{13}$/)).toBeInTheDocument()
+    expect(screen.getByLabelText('ข้อมูลถูกปกปิด')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /แก้ไข|เพิ่ม|ลบ/ })).not.toBeInTheDocument()
+  })
+
+  it('finance cannot see personal information but can see salary', async () => {
+    const user = await loginAndOpen('finance1', 'ค้นหาข้อมูลพนักงาน')
+    await user.type(await screen.findByLabelText('ค้นหาพนักงาน'), 'E105')
+    await user.click(await screen.findByRole('link', { name: /ดูรายละเอียด/ }))
+    expect(await screen.findByRole('heading', { name: 'สมชาย ใจดี' })).toBeInTheDocument()
     expect(screen.getByText(/ข้อมูลส่วนบุคคลเป็นความลับ/)).toBeInTheDocument()
-    expect(screen.getByLabelText('ข้อมูลถูกปกปิด')).toBeInTheDocument() // masked salary
+    expect(await screen.findByText(/55,000/)).toBeInTheDocument()
+  })
+
+  it('has no department dropdown, for every role', async () => {
+    for (const username of ['manager1', 'hr1', 'finance1', 'executive1']) {
+      localStorage.clear()
+      resetDb()
+      const { unmount } = await openAs(username, '/employees/search')
+      await screen.findByLabelText('ค้นหาพนักงาน')
+      expect(screen.queryByRole('combobox', { name: /แผนก/ })).not.toBeInTheDocument()
+      expect(screen.queryByText('ทุกแผนก')).not.toBeInTheDocument()
+      expect(screen.getByRole('combobox', { name: 'กรองตามสถานะ' })).toBeInTheDocument() // status filter remains
+      unmount()
+    }
+  })
+
+  it('search only lists Accounting Audit Department employees', async () => {
+    const user = await loginAndOpen('hr1', 'ค้นหาข้อมูลพนักงาน')
+    await user.type(await screen.findByLabelText('ค้นหาพนักงาน'), 'E301')
+    expect(await screen.findByText('ไม่พบพนักงานที่ตรงกับเงื่อนไขการค้นหา')).toBeInTheDocument()
   })
 })
 
@@ -145,7 +200,8 @@ describe('UC-04 manage employees', () => {
     await user.type(within(dialog).getByLabelText(/รหัสพนักงาน/), 'E900')
     await user.type(within(dialog).getByLabelText(/^ชื่อ \*/), 'ทดสอบ')
     await user.type(within(dialog).getByLabelText(/นามสกุล/), 'ระบบ')
-    await user.type(within(dialog).getByLabelText(/แผนก/), 'ตรวจสอบบัญชี')
+    expect(within(dialog).getByLabelText(/แผนก/)).toHaveValue('ตรวจสอบบัญชี')
+    expect(within(dialog).getByLabelText(/แผนก/)).toHaveAttribute('readonly')
     await user.type(within(dialog).getByLabelText(/ตำแหน่ง/), 'ผู้ตรวจสอบบัญชี')
     await user.type(within(dialog).getByLabelText(/วันที่เริ่มงาน/), '2026-01-05')
     await user.click(within(dialog).getByRole('button', { name: 'บันทึก' }))
@@ -160,7 +216,6 @@ describe('UC-04 manage employees', () => {
     await user.type(within(dialog).getByLabelText(/รหัสพนักงาน/), 'E105')
     await user.type(within(dialog).getByLabelText(/^ชื่อ \*/), 'ก')
     await user.type(within(dialog).getByLabelText(/นามสกุล/), 'ข')
-    await user.type(within(dialog).getByLabelText(/แผนก/), 'ก')
     await user.type(within(dialog).getByLabelText(/ตำแหน่ง/), 'ก')
     await user.type(within(dialog).getByLabelText(/วันที่เริ่มงาน/), '2026-01-05')
     await user.click(within(dialog).getByRole('button', { name: 'บันทึก' }))
@@ -185,9 +240,9 @@ describe('UC-06 resignation workflow', () => {
   it('can filter the resigned list and reinstate with confirmation', async () => {
     const user = await loginAndOpen('manager1', 'พนักงานที่ลาออก')
     await screen.findByText('นภา สว่างใจ')
-    await user.type(screen.getByLabelText('ค้นหาพนักงานที่ลาออก'), 'E303')
+    await user.type(screen.getByLabelText('ค้นหาพนักงานที่ลาออก'), 'E111')
     expect(screen.queryByText('นภา สว่างใจ')).not.toBeInTheDocument()
-    expect(screen.getByText('สุดา แก้วมณี')).toBeInTheDocument()
+    expect(screen.getByText('พิมพ์ชนก ทองคำ')).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: /กลับเข้าทำงาน/ }))
     const dialog = await screen.findByRole('dialog')
     await user.click(within(dialog).getByRole('button', { name: 'ยืนยัน' }))

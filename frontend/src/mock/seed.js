@@ -95,7 +95,7 @@ export function buildSeed() {
 
   const announcements = [
     { id: 1, title: 'ประกาศวันหยุดประจำเดือนตุลาคม', publishedAt: '2026-10-10' },
-    { id: 2, title: 'กำหนดการประเมินผลการปฏิบัติงานรอบปลายปี', publishedAt: '2026-10-03' },
+    { id: 2, title: 'กำหนดการประเมินผลการปฏิบัติงานรอบปลายปี', publishedAt: '2026-10-03', important: true },
     { id: 3, title: 'อบรมมาตรฐานการตรวจสอบบัญชีฉบับใหม่', publishedAt: '2026-09-24' },
     { id: 4, title: 'แจ้งปรับปรุงระบบข้อมูลพนักงาน', publishedAt: '2026-09-12' },
   ]
