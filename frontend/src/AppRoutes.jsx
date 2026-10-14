@@ -6,7 +6,7 @@ import ToastProvider from './components/ToastProvider.jsx'
 import AppLayout from './components/AppLayout.jsx'
 import EmployeeFinder from './components/EmployeeFinder.jsx'
 import Dashboard from './pages/Dashboard.jsx'
-import EmployeeDetail from './pages/EmployeeDetail.jsx'
+import { EmployeeRoute, HistoryRoute } from './pages/EmployeeAccess.jsx'
 import EmployeeManage from './pages/EmployeeManage.jsx'
 import ResignedEmployees from './pages/ResignedEmployees.jsx'
 import SalaryManage from './pages/SalaryManage.jsx'
@@ -33,18 +33,8 @@ export default function AppRoutes() {
                   <EmployeeFinder title="ค้นหาข้อมูลพนักงาน" description="ค้นหาด้วยรหัสพนักงาน ชื่อ หรือแผนก" />,
                 )}
               />
-              <Route
-                path="/employees/history"
-                element={guard(
-                  'employee:view',
-                  <EmployeeFinder
-                    title="ประวัติพนักงาน"
-                    description="เลือกพนักงานเพื่อดูรายละเอียดและประวัติการทำงาน"
-                    showMine
-                  />,
-                )}
-              />
-              <Route path="/employees/:id" element={guard('employee:view', <EmployeeDetail />)} />
+              <Route path="/employees/history" element={guard('employee:view', <HistoryRoute />)} />
+              <Route path="/employees/:id" element={guard('employee:view', <EmployeeRoute />)} />
               <Route path="/employees" element={guard('employee:manage', <EmployeeManage />)} />
               <Route path="/resigned" element={guard('resignation:manage', <ResignedEmployees />)} />
               <Route path="/salaries" element={guard('salary:manage', <SalaryManage />)} />

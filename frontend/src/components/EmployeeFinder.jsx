@@ -11,7 +11,6 @@ export default function EmployeeFinder({ title, description, showMine = false })
   const { user } = useAuth()
   const [q, setQ] = useState('')
   const [debouncedQ, setDebouncedQ] = useState('')
-  const [department, setDepartment] = useState('')
   const [status, setStatus] = useState('')
 
   useEffect(() => {
@@ -21,10 +20,8 @@ export default function EmployeeFinder({ title, description, showMine = false })
 
   const params = new URLSearchParams()
   if (debouncedQ) params.set('q', debouncedQ)
-  if (department) params.set('department', department)
   if (status) params.set('status', status)
 
-  const depts = useApi('/employees/departments')
   const { data, loading, error, reload } = useApi(`/employees?${params}`)
 
   return (
@@ -44,17 +41,11 @@ export default function EmployeeFinder({ title, description, showMine = false })
           <input
             className="input"
             type="search"
-            placeholder="ค้นหาด้วยรหัสพนักงาน ชื่อ หรือแผนก"
+            placeholder="ค้นหาด้วยรหัสพนักงานหรือชื่อ"
             aria-label="ค้นหาพนักงาน"
             value={q}
             onChange={(e) => setQ(e.target.value)}
           />
-          <select className="select" aria-label="กรองตามแผนก" value={department} onChange={(e) => setDepartment(e.target.value)}>
-            <option value="">ทุกแผนก</option>
-            {depts.data?.departments.map((d) => (
-              <option key={d} value={d}>{d}</option>
-            ))}
-          </select>
           <select className="select" aria-label="กรองตามสถานะ" value={status} onChange={(e) => setStatus(e.target.value)}>
             <option value="">ทุกสถานะ</option>
             <option value="active">ปฏิบัติงาน</option>
@@ -77,7 +68,6 @@ export default function EmployeeFinder({ title, description, showMine = false })
                   <tr>
                     <th scope="col">รหัสพนักงาน</th>
                     <th scope="col">ชื่อ-นามสกุล</th>
-                    <th scope="col">แผนก</th>
                     <th scope="col">ตำแหน่ง</th>
                     <th scope="col">วันที่เริ่มงาน</th>
                     <th scope="col">สถานะ</th>
@@ -89,7 +79,6 @@ export default function EmployeeFinder({ title, description, showMine = false })
                     <tr key={e.id}>
                       <td data-label="รหัสพนักงาน" className="mono">{e.employeeCode}</td>
                       <td data-label="ชื่อ-นามสกุล">{fullName(e)}</td>
-                      <td data-label="แผนก">{e.department}</td>
                       <td data-label="ตำแหน่ง">{e.position}</td>
                       <td data-label="วันที่เริ่มงาน">{formatDate(e.startDate)}</td>
                       <td data-label="สถานะ">

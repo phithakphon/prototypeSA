@@ -1,13 +1,17 @@
 import { NavLink, useNavigate } from 'react-router-dom'
+import {
+  ClipboardCheck, History, House, LogOut, PanelLeftClose, PanelLeftOpen, Search, SlidersHorizontal, UserMinus, Wallet, X,
+} from 'lucide-react'
 import { useAuth } from '../auth/auth'
-import { Home, Search, History, Settings, ClipboardCheck, UserMinus, Wallet, LogOut, ChevronLeft, X } from './icons'
+
+const ICON = { size: 24, strokeWidth: 1.75, 'aria-hidden': true }
 
 // permission: required RBAC permission (omit = every signed-in user). Server enforces the same rules.
 const NAV_ITEMS = [
-  { to: '/dashboard', label: 'หน้าหลัก', icon: Home },
+  { to: '/dashboard', label: 'หน้าหลัก', icon: House },
   { to: '/employees/search', label: 'ค้นหาข้อมูลพนักงาน', icon: Search, permission: 'employee:search' },
   { to: '/employees/history', label: 'ประวัติพนักงาน', icon: History, permission: 'employee:view' },
-  { to: '/employees', label: 'จัดการข้อมูลพนักงาน', icon: Settings, end: true, permission: 'employee:manage' },
+  { to: '/employees', label: 'จัดการข้อมูลพนักงาน', icon: SlidersHorizontal, end: true, permission: 'employee:manage' },
   { to: '/resigned', label: 'พนักงานที่ลาออก', icon: UserMinus, permission: 'resignation:manage' },
   { to: '/salaries', label: 'จัดการเงินเดือน', icon: Wallet, permission: 'salary:manage' },
   { to: '/evaluations', label: 'ผลการประเมิน', icon: ClipboardCheck },
@@ -19,6 +23,7 @@ function Sidebar({ collapsed, onToggleCollapse, mobileOpen, onCloseMobile }) {
   const cls = ['sidebar', collapsed ? 'is-collapsed' : '', mobileOpen ? 'is-open' : '']
     .filter(Boolean)
     .join(' ')
+  const CollapseIcon = collapsed ? PanelLeftOpen : PanelLeftClose
 
   return (
     <aside id="app-sidebar" className={cls} aria-label="เมนูหลัก">
@@ -34,10 +39,10 @@ function Sidebar({ collapsed, onToggleCollapse, mobileOpen, onCloseMobile }) {
           aria-label={collapsed ? 'ขยายเมนู' : 'ย่อเมนู'}
           aria-expanded={!collapsed}
         >
-          <ChevronLeft />
+          <CollapseIcon size={22} strokeWidth={1.75} aria-hidden="true" />
         </button>
         <button type="button" className="icon-btn sidebar-close" onClick={onCloseMobile} aria-label="ปิดเมนู">
-          <X />
+          <X size={22} strokeWidth={1.75} aria-hidden="true" />
         </button>
       </div>
 
@@ -48,11 +53,11 @@ function Sidebar({ collapsed, onToggleCollapse, mobileOpen, onCloseMobile }) {
               <NavLink
                 to={to}
                 end={end}
+                data-tip={label}
                 className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}
-                title={collapsed ? label : undefined}
                 onClick={onCloseMobile}
               >
-                <Icon />
+                <Icon {...ICON} />
                 <span className="sidebar-text">{label}</span>
               </NavLink>
             </li>
@@ -63,13 +68,13 @@ function Sidebar({ collapsed, onToggleCollapse, mobileOpen, onCloseMobile }) {
       <button
         type="button"
         className="nav-link nav-logout"
-        title={collapsed ? 'ออกจากระบบ' : undefined}
+        data-tip="ออกจากระบบ"
         onClick={() => {
           logout()
           navigate('/login')
         }}
       >
-        <LogOut />
+        <LogOut {...ICON} />
         <span className="sidebar-text">ออกจากระบบ</span>
       </button>
     </aside>

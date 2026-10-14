@@ -2,7 +2,7 @@
 // so pages can be swapped to the real API by turning mock mode off in src/api.js.
 // DEMO ONLY: the permission checks here simulate roles and are not real security.
 import { ApiError } from '../apiError'
-import { todayIso } from '../format'
+import { DEPARTMENT, todayIso } from '../format'
 import { db, nextId } from './db'
 import { can, permissionsFor, ROLE_LABELS } from './rbac'
 import { parseEmployee, parseResignation, parseSalary } from './validate'
@@ -32,9 +32,12 @@ const describeUser = (u) => {
 const requirePerm = (user, permission) => {
   if (!can(user.role, permission)) throw forbidden()
 }
-const getEmployee = (id) => {
+// The system serves one department only. Records outside it are invisible, except a user's own record.
+const inScope = (e) => e.department === DEPARTMENT
+const scopedEmployees = () => db.employees.filter(inScope)
+const getEmployee = (id, user) => {
   const e = db.employees.find((x) => x.id === Number(id))
-  if (!e) throw notFound('ไม่พบข้อมูลพนักงาน')
+  if (!e || (!inScope(e) && e.id !== user?.employeeId)) throw notFound('ไม่พบข้อมูลพนักงาน')
   return e
 }
 const addHistory = (employeeId, eventType, description, eventDate) =>
@@ -62,15 +65,20 @@ route('POST', '/auth/login', ({ body }) => {
 
 route('GET', '/auth/me', ({ user }) => ({ user: describeUser(user) }))
 
-route('GET', '/dashboard/summary', () => {
-  const sorted = [...db.employees].sort((a, b) => (a.startDate === b.startDate ? b.id - a.id : a.startDate < b.startDate ? 1 : -1))
+route('GET', '/dashboard/summary', ({ user }) => {
+  const staff = scopedEmployees()
+  const selfOnly = can(user.role, 'employee:selfOnly')
+  const sorted = [...staff].sort((a, b) => (a.startDate === b.startDate ? b.id - a.id : a.startDate < b.startDate ? 1 : -1))
   return {
-    counts: {
-      total: db.employees.length,
-      active: db.employees.filter((e) => e.status === 'active').length,
-      resigned: db.employees.filter((e) => e.status === 'resigned').length,
-    },
-    recentEmployees: sorted.slice(0, 5).map((e) => pick(e, ['id', 'employeeCode', 'firstName', 'lastName', 'position', 'startDate', 'status'])),
+    // self-only roles get no organisation-wide statistics and no other employees' details
+    counts: selfOnly
+      ? null
+      : {
+          total: staff.length,
+          active: staff.filter((e) => e.status === 'active').length,
+          resigned: staff.filter((e) => e.status === 'resigned').length,
+        },
+    recentEmployees: selfOnly ? [] : sorted.slice(0, 5).map((e) => pick(e, ['id', 'employeeCode', 'firstName', 'lastName', 'position', 'startDate', 'status'])),
     announcements: [...db.announcements].sort((a, b) => (a.publishedAt < b.publishedAt ? 1 : -1)).slice(0, 5),
   }
 })
@@ -78,12 +86,10 @@ route('GET', '/dashboard/summary', () => {
 route('GET', '/employees', ({ user, query }) => {
   requirePerm(user, 'employee:search')
   const q = (query.get('q') || '').trim().toLowerCase()
-  const department = (query.get('department') || '').trim()
   const status = query.get('status') || ''
   if (status && !['active', 'resigned'].includes(status)) throw new ApiError(400, 'สถานะไม่ถูกต้อง')
-  const rows = db.employees
-    .filter((e) => !q || `${e.employeeCode} ${e.firstName} ${e.lastName} ${e.firstName}${e.lastName} ${e.department}`.toLowerCase().includes(q))
-    .filter((e) => !department || e.department === department)
+  const rows = scopedEmployees()
+    .filter((e) => !q || `${e.employeeCode} ${e.firstName} ${e.lastName} ${e.firstName}${e.lastName}`.toLowerCase().includes(q))
     .filter((e) => !status || e.status === status)
     .sort((a, b) => a.employeeCode.localeCompare(b.employeeCode))
   return { total: rows.length, employees: rows.slice(0, 200).map(toPublic) }
@@ -91,12 +97,12 @@ route('GET', '/employees', ({ user, query }) => {
 
 route('GET', '/employees/departments', ({ user }) => {
   requirePerm(user, 'employee:search')
-  return { departments: [...new Set(db.employees.map((e) => e.department))].sort((a, b) => a.localeCompare(b, 'th')) }
+  return { departments: [DEPARTMENT] }
 })
 
 route('GET', '/employees/resigned', ({ user }) => {
   requirePerm(user, 'resignation:manage')
-  const rows = db.employees
+  const rows = scopedEmployees()
     .filter((e) => e.status === 'resigned')
     .sort((a, b) => (a.resignationDate < b.resignationDate ? 1 : -1))
   return { employees: rows.map((e) => ({ ...toPublic(e), resignationDate: e.resignationDate, resignationReason: e.resignationReason })) }
@@ -104,8 +110,10 @@ route('GET', '/employees/resigned', ({ user }) => {
 
 route('GET', '/employees/:id', ({ user, params }) => {
   requirePerm(user, 'employee:view')
-  const e = getEmployee(params.id)
+  const e = getEmployee(params.id, user)
   const isSelf = user.employeeId === e.id
+  // self-only roles can never read another employee's record
+  if (can(user.role, 'employee:selfOnly') && !isSelf) throw forbidden('คุณดูได้เฉพาะข้อมูลของตนเองเท่านั้น')
   const confidentialVisible = isSelf || can(user.role, 'employee:viewConfidential')
   return {
     employee: {
@@ -124,7 +132,7 @@ route('GET', '/employees/:id', ({ user, params }) => {
 
 route('POST', '/employees', ({ user, body }) => {
   requirePerm(user, 'employee:manage')
-  const data = parseEmployee(body)
+  const data = parseEmployee({ ...body, department: DEPARTMENT })
   if (codeTaken(data.employeeCode)) throw conflict('รหัสพนักงานนี้มีอยู่ในระบบแล้ว')
   const emp = { id: nextId('employees'), ...data, status: 'active', resignationDate: null, resignationReason: null }
   db.employees.push(emp)
@@ -134,8 +142,8 @@ route('POST', '/employees', ({ user, body }) => {
 
 route('PUT', '/employees/:id', ({ user, params, body }) => {
   requirePerm(user, 'employee:manage')
-  const old = getEmployee(params.id)
-  const data = parseEmployee(body)
+  const old = getEmployee(params.id, user)
+  const data = parseEmployee({ ...body, department: DEPARTMENT })
   if (codeTaken(data.employeeCode, old.id)) throw conflict('รหัสพนักงานนี้มีอยู่ในระบบแล้ว')
   const date = todayIso()
   let logged = false
@@ -156,7 +164,7 @@ route('PUT', '/employees/:id', ({ user, params, body }) => {
 
 route('POST', '/employees/:id/resign', ({ user, params, body }) => {
   requirePerm(user, 'resignation:manage')
-  const emp = getEmployee(params.id)
+  const emp = getEmployee(params.id, user)
   const { resignationDate, reason } = parseResignation(body)
   if (emp.status === 'resigned') throw conflict('พนักงานคนนี้ลาออกแล้ว')
   if (resignationDate < emp.startDate) {
@@ -173,7 +181,7 @@ route('POST', '/employees/:id/resign', ({ user, params, body }) => {
 // Frontend-only extension (not in backend yet): return a resigned employee to active status.
 route('POST', '/employees/:id/reinstate', ({ user, params }) => {
   requirePerm(user, 'resignation:manage')
-  const emp = getEmployee(params.id)
+  const emp = getEmployee(params.id, user)
   if (emp.status !== 'resigned') throw conflict('พนักงานคนนี้ยังปฏิบัติงานอยู่')
   Object.assign(emp, { status: 'active', resignationDate: null, resignationReason: null })
   addHistory(emp.id, 'reinstated', 'กลับเข้าปฏิบัติงาน', todayIso())
@@ -183,7 +191,7 @@ route('POST', '/employees/:id/reinstate', ({ user, params }) => {
 route('GET', '/salaries', ({ user }) => {
   requirePerm(user, 'salary:manage')
   return {
-    employees: [...db.employees]
+    employees: scopedEmployees()
       .sort((a, b) => a.employeeCode.localeCompare(b.employeeCode))
       .map((e) => {
         const cur = currentSalary(e.id)
@@ -193,8 +201,9 @@ route('GET', '/salaries', ({ user }) => {
 })
 
 route('GET', '/employees/:id/salaries', ({ user, params }) => {
-  const emp = getEmployee(params.id)
-  if (!(can(user.role, 'salary:manage') || user.employeeId === emp.id)) throw forbidden('คุณไม่มีสิทธิ์ดูข้อมูลเงินเดือน')
+  const emp = getEmployee(params.id, user)
+  // finance manages; HR may only read (salary:view); employees read their own
+  if (!(can(user.role, 'salary:manage') || can(user.role, 'salary:view') || user.employeeId === emp.id)) throw forbidden('คุณไม่มีสิทธิ์ดูข้อมูลเงินเดือน')
   const rows = db.salaries
     .filter((s) => s.employeeId === emp.id)
     .sort((a, b) => (a.effectiveDate === b.effectiveDate ? b.id - a.id : a.effectiveDate < b.effectiveDate ? 1 : -1))
@@ -203,7 +212,7 @@ route('GET', '/employees/:id/salaries', ({ user, params }) => {
 
 route('POST', '/employees/:id/salaries', ({ user, params, body }) => {
   requirePerm(user, 'salary:manage')
-  const emp = getEmployee(params.id)
+  const emp = getEmployee(params.id, user)
   if (emp.status === 'resigned') throw new ApiError(400, 'ไม่สามารถเพิ่มเงินเดือนให้พนักงานที่ลาออกแล้ว')
   const d = parseSalary(body)
   const salary = { id: nextId('salaries'), employeeId: emp.id, ...d }
