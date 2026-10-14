@@ -132,7 +132,13 @@ function EmployeeHome({ employeeId, announcements }) {
   return (
     <div className="dashboard employee-home">
       <h1 className="page-title">หน้าหลัก</h1>
-      <MyProfileCard employeeId={employeeId} />
+      {employeeId ? (
+        <MyProfileCard employeeId={employeeId} />
+      ) : (
+        <Notice variant="info" title="บัญชีนี้ยังไม่ได้เชื่อมกับข้อมูลพนักงาน">
+          ยังไม่มีข้อมูลส่วนตัวหรือประวัติการทำงานให้แสดง กรุณาติดต่อฝ่ายบุคคลเพื่อเชื่อมบัญชีกับข้อมูลพนักงาน
+        </Notice>
+      )}
       <ImportantNotices announcements={announcements} />
       <AnnouncementPanel announcements={announcements} />
     </div>

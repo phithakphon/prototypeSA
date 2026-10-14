@@ -1,5 +1,6 @@
 import { Navigate, Route, Routes } from 'react-router-dom'
 import App from './App.jsx'
+import Register from './pages/Register.jsx'
 import AuthProvider from './auth/AuthProvider.jsx'
 import { RequireAuth, RequirePermission } from './auth/RequireAuth.jsx'
 import ToastProvider from './components/ToastProvider.jsx'
@@ -23,6 +24,7 @@ export default function AppRoutes() {
         <Routes>
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
           <Route path="/login" element={<App />} />
+          <Route path="/register" element={<Register />} />
           <Route element={<RequireAuth />}>
             <Route element={<AppLayout />}>
               <Route path="/dashboard" element={<Dashboard />} />
