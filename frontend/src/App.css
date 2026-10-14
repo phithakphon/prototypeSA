@@ -1,0 +1,232 @@
+#root {
+  min-height: 100vh;
+}
+
+.login-page {
+  display: grid;
+  grid-template-columns: 1.05fr 0.95fr;
+  min-height: 100vh;
+  background: #ffffff;
+  color: #1f2937;
+}
+
+.login-banner {
+  position: relative;
+  min-height: 100vh;
+  overflow: hidden;
+  background:
+    linear-gradient(135deg, rgba(15, 42, 76, 0.94), rgba(24, 83, 112, 0.72)),
+    url('/office.jpg') center / cover no-repeat;
+  color: #ffffff;
+}
+
+.banner-overlay {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  min-height: 100vh;
+  padding: 48px 9%;
+  box-sizing: border-box;
+}
+
+.company-brand {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 2px;
+}
+
+.brand-mark {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border: 1px solid rgba(255, 255, 255, 0.65);
+  border-radius: 12px;
+  font-size: 15px;
+  letter-spacing: 0;
+}
+
+.banner-content {
+  max-width: 510px;
+  margin: 50px 0;
+}
+
+.eyebrow,
+.welcome-label {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 2px;
+}
+
+.eyebrow {
+  color: #b9d9ef;
+}
+
+.banner-content h1 {
+  margin: 22px 0;
+  font-size: clamp(30px, 3.3vw, 46px);
+  line-height: 1.5;
+}
+
+.banner-description {
+  max-width: 400px;
+  color: #e0eaf2;
+  font-size: 15px;
+  line-height: 1.9;
+}
+
+.banner-footer {
+  color: #c4d5e5;
+  font-size: 10px;
+  letter-spacing: 1.5px;
+}
+
+.login-panel {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  position: relative;
+  min-height: 100vh;
+  padding: 48px 28px 76px;
+  box-sizing: border-box;
+}
+
+.login-card {
+  width: 100%;
+  max-width: 390px;
+}
+
+.mobile-brand {
+  display: none;
+  margin-bottom: 42px;
+  color: #17466e;
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: 1px;
+}
+
+.welcome-label {
+  margin-bottom: 12px;
+  color: #3977a5;
+}
+
+.login-card h2 {
+  margin: 0;
+  color: #172b43;
+  font-size: 32px;
+}
+
+.login-description {
+  margin: 12px 0 34px;
+  color: #7b8796;
+  font-size: 14px;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 22px;
+}
+
+.form-group label {
+  color: #344256;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.form-group input {
+  width: 100%;
+  height: 49px;
+  padding: 0 15px;
+  border: 1px solid #dce3eb;
+  border-radius: 8px;
+  outline: none;
+  box-sizing: border-box;
+  background: #ffffff;
+  color: #172b43;
+  font: inherit;
+  font-size: 14px;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.form-group input:focus {
+  border-color: #3977a5;
+  box-shadow: 0 0 0 3px rgba(57, 119, 165, 0.12);
+}
+
+.form-group input::placeholder {
+  color: #a6afba;
+}
+
+.login-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  width: 100%;
+  height: 49px;
+  margin-top: 10px;
+  border: none;
+  border-radius: 8px;
+  background: #17466e;
+  color: #ffffff;
+  font: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.login-button:hover {
+  background: #103655;
+}
+
+.login-note {
+  margin-top: 28px;
+  color: #8994a3;
+  font-size: 12px;
+  line-height: 1.8;
+  text-align: center;
+}
+
+.panel-footer {
+  position: absolute;
+  right: 16px;
+  bottom: 22px;
+  left: 16px;
+  color: #9aa3af;
+  font-size: 11px;
+  text-align: center;
+}
+
+@media (max-width: 760px) {
+  .login-page {
+    grid-template-columns: 1fr;
+  }
+
+  .login-banner {
+    display: none;
+  }
+
+  .login-panel {
+    min-height: 100vh;
+    padding: 36px 24px 76px;
+  }
+
+  .login-card {
+    max-width: 420px;
+  }
+
+  .mobile-brand {
+    display: block;
+  }
+
+  .login-card h2 {
+    font-size: 29px;
+  }
+}
