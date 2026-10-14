@@ -1,0 +1,8 @@
+.evaluation-employee { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.evaluation-record { border: 1px solid var(--border, #dce5ef); border-radius: 12px; padding: 18px; }
+.evaluation-scores { display: grid; gap: 12px; }
+.evaluation-scores > div { display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.evaluation-scores dd { margin: 0; color: var(--primary, #1c4c88); }
+.evaluation-total { padding: 14px; background: #eef5ff; color: #163d70; border-radius: 8px; }
+.evaluation-text { white-space: pre-wrap; overflow-wrap: anywhere; }
+.evaluation-fields { border: 0; margin: 0; padding: 0; display: grid; gap: 16px; min-width: 0; }

@@ -20,6 +20,8 @@ export const ROLE_LABELS = {
 const ALL = Object.values(ROLES)
 
 export const PERMISSIONS = {
+  'evaluation:view': ['employee', 'manager'],
+  'evaluation:manage': ['manager'],
   // UC-02 ค้นหาข้อมูลพนักงาน
   'employee:search': ALL,
   // UC-03 ดูประวัติและรายละเอียดพนักงาน (ข้อมูลทั่วไป + ประวัติ)

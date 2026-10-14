@@ -11,7 +11,8 @@
     "dev": "node --watch --env-file=.env src/server.js",
     "migrate": "node --env-file=.env src/migrate.js",
     "seed": "node --env-file=.env src/seed.js",
-    "test": "node --test test/api.test.js"
+    "seed:evaluations": "node --env-file=.env src/seed-evaluations.js --demo-only",
+    "test": "node --test test/api.test.js test/evaluations.test.js"
   },
   "dependencies": {
     "bcrypt": "^6.0.0",

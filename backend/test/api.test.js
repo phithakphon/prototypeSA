@@ -233,3 +233,24 @@ test('malformed JSON and unknown routes return Thai errors', async () => {
   const nf = await call('GET', '/api/nothing', { token: tokens.hr1 })
   assert.equal(nf.status, 404)
 })
+
+test('demo evaluation API returns E100 history and isolates other demo employee records', async () => {
+  const excellent = await call('GET', '/api/evaluations?employeeCode=E100', { token: tokens.manager1 })
+  assert.equal(excellent.status, 200)
+  assert.equal(excellent.body.employee.employeeCode, 'E100')
+  assert.equal(excellent.body.evaluations.length, 2)
+  assert.equal(excellent.body.evaluations[0].totalScore, 29)
+  for (const code of ['E100', 'E101', 'E102', 'E103', 'E104', 'E105']) {
+    const response = await call('GET', `/api/evaluations?employeeCode=${code}`, { token: tokens.manager1 })
+    assert.equal(response.status, 200)
+    assert.ok(response.body.evaluations.length)
+    for (const record of response.body.evaluations) {
+      assert.equal(record.employeeId, response.body.employee.id)
+      assert.equal(record.totalScore, record.scores.reduce((a,b) => a+b, 0))
+      assert.ok(record.evaluationPeriod.startsWith('ข้อมูลตัวอย่าง:'))
+    }
+  }
+  const poor = await call('GET', '/api/evaluations?employeeCode=E103', { token: tokens.manager1 })
+  assert.equal(poor.body.evaluations[0].rating, 'Requires Significant Improvement')
+  assert.equal(poor.body.evaluations[0].totalScore, 9)
+})
