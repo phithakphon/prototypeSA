@@ -314,7 +314,14 @@
 .demo-chips button:focus-visible,
 .login-button:focus-visible { outline: 3px solid #0b84d6; outline-offset: 2px; }
 
-.field-msg { margin: 0; color: #b91c1c; font-size: 13px; animation: msg-in 200ms ease both; }
+.field-msg,
+.field-ok,
+.field-hint { display: flex; align-items: flex-start; gap: 6px; margin: 0; font-size: 14px; line-height: 1.5; animation: msg-in 200ms ease both; }
+.field-msg { color: #b91c1c; }
+.field-ok { color: #15803d; }
+.field-hint { color: #5a6b7c; animation: none; }
+.field-msg svg,
+.field-ok svg { flex: none; margin-top: 3px; }
 .login-error {
   margin: 0 0 16px;
   padding: 10px 14px;
@@ -454,4 +461,63 @@
 @media (pointer: coarse) {
   .cursor-glow { display: none; }
   .art-parallax { transform: none; }
+}
+
+/* ---------- registration page ---------- */
+.input-wrap.is-valid input { border-color: #22a05a; }
+.input-wrap.is-valid input:focus { box-shadow: 0 0 0 4px rgb(34 160 90 / 18%); }
+.reg-form .form-group { margin-bottom: 14px; }
+.reg-form .login-button { margin-top: 10px; }
+
+.auth-back {
+  display: inline-flex; align-items: center; gap: 6px; min-height: 44px; margin: -8px 0 4px -6px; padding: 0 10px;
+  border-radius: 12px; color: var(--corp); font-size: 15px; font-weight: 500; text-decoration: none;
+  transition: background 200ms ease, transform 150ms ease;
+}
+.auth-back:hover { background: #e8f2fa; }
+.auth-back:active { transform: scale(0.97); }
+.auth-back:focus-visible, .auth-switch a:focus-visible { outline: 3px solid #0b84d6; outline-offset: 2px; }
+.auth-back svg { transition: transform 200ms ease; }
+.auth-back:hover svg { transform: translateX(-3px); }
+
+.auth-notice { margin: 0 0 16px; font-size: 15px; }
+.auth-switch { margin: 18px 0 0; color: #5a6b7c; font-size: 15.5px; text-align: center; }
+.auth-switch a {
+  display: inline-flex; align-items: center; gap: 6px; min-height: 40px; padding: 0 6px; border-radius: 10px;
+  color: var(--corp); font-weight: 600; text-decoration: underline; text-underline-offset: 4px;
+  transition: background 200ms ease;
+}
+.auth-switch a:hover { background: #e8f2fa; }
+.auth-note {
+  display: flex; align-items: flex-start; gap: 8px; margin: 14px 0 0; padding: 10px 12px; border-radius: 12px;
+  background: #eef5fb; color: #365067; font-size: 14px; line-height: 1.55;
+}
+.auth-note svg { flex: none; margin-top: 2px; color: var(--ocean); }
+
+.pw-guide { margin: -4px 0 14px; padding: 12px 14px; border: 1px solid #d3dfea; border-radius: 14px; background: #f7fafd; }
+.pw-meter { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 8px; font-size: 14px; color: #365067; }
+.pw-bars { display: inline-flex; gap: 4px; flex: none; }
+.pw-bars i { width: 28px; height: 6px; border-radius: 3px; background: #d6e2ec; transition: background 250ms ease; }
+.pw-bars.s1 i:nth-child(-n + 1) { background: #dc2626; }
+.pw-bars.s2 i:nth-child(-n + 2) { background: #d99a22; }
+.pw-bars.s3 i:nth-child(-n + 3) { background: #2f9e5b; }
+.pw-bars.s4 i { background: #15803d; }
+.pw-checks { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 12px; margin: 0; padding: 0; list-style: none; font-size: 14px; color: #5a6b7c; }
+.pw-checks li { display: flex; align-items: center; gap: 6px; transition: color 200ms ease; }
+.pw-checks li.is-ok { color: #15803d; font-weight: 500; }
+
+.reg-success { display: grid; justify-items: center; gap: 14px; padding: 16px 0 6px; text-align: center; animation: card-in 400ms ease both; }
+.reg-success-icon { display: grid; place-items: center; width: 76px; height: 76px; border-radius: 50%; background: #dcfce7; color: #15803d; }
+.reg-success h2 { margin: 0; }
+.reg-success p { margin: 0; color: #365067; font-size: 16px; }
+.reg-success .notice-box { text-align: left; width: 100%; }
+.reg-success .login-button { margin-top: 8px; }
+
+@media (max-width: 767px) {
+  .pw-checks { grid-template-columns: 1fr; }
+  .auth-back { margin-top: -6px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .reg-success, .field-msg, .field-ok { animation: none; }
+  .pw-bars i, .auth-back svg { transition: none; }
 }

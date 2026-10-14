@@ -6,6 +6,7 @@ import { DEPARTMENT, todayIso } from '../format'
 import { db, nextId } from './db'
 import { can, permissionsFor, ROLE_LABELS } from './rbac'
 import { parseEmployee, parseResignation, parseSalary } from './validate'
+import { validateRegistration } from '../auth/registerRules'
 
 const unauthorized = () => new ApiError(401, 'กรุณาเข้าสู่ระบบ')
 const forbidden = (m = 'คุณไม่มีสิทธิ์ใช้งานส่วนนี้') => new ApiError(403, m)
@@ -61,6 +62,27 @@ route('POST', '/auth/login', ({ body }) => {
   const user = db.users.find((u) => u.username === username.trim())
   if (!user || user.password !== password) throw new ApiError(401, 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง')
   return { token: `mock-token-${user.id}`, user: describeUser(user) }
+}, { auth: false })
+
+// MOCK sign-up adapter. The real backend has no registration endpoint yet (backend/src/routes/auth.js only has
+// login and me), so this only simulates the intended behaviour in memory: nothing is persisted and the
+// account disappears when the page is reloaded. Rules it enforces (a real server must enforce them too):
+//  - the role is ALWAYS 'employee' (any role sent by the client is ignored)
+//  - usernames must be unique (case-insensitive)
+// The account is NOT linked to an employee record (no employee verification), so it can see no employee data.
+route('POST', '/auth/register', ({ body }) => {
+  const b = body && typeof body === 'object' ? body : {}
+  const errors = validateRegistration(b)
+  if (Object.keys(errors).length) throw new ApiError(400, 'ข้อมูลการสมัครไม่ถูกต้อง กรุณาตรวจสอบอีกครั้ง', errors)
+
+  const username = String(b.username).trim()
+  if (db.users.some((u) => u.username.toLowerCase() === username.toLowerCase())) {
+    throw new ApiError(409, 'ชื่อผู้ใช้นี้ถูกใช้แล้ว', { username: 'ชื่อผู้ใช้นี้ถูกใช้แล้ว กรุณาเลือกชื่ออื่น' })
+  }
+
+  // in-memory only (never written to localStorage); a real backend stores a bcrypt hash
+  db.users.push({ id: nextId('users'), username, password: b.password, role: 'employee', employeeId: null })
+  return { username, role: 'employee', roleLabel: ROLE_LABELS.employee, mock: true }
 }, { auth: false })
 
 route('GET', '/auth/me', ({ user }) => ({ user: describeUser(user) }))
