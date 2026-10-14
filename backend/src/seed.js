@@ -1,3 +1,4 @@
+import { seedDemoEvaluations } from './demo-evaluation-seed.js'
 // Test/development seed data. NOT for production: it creates well-known accounts.
 import bcrypt from 'bcrypt'
 import { fileURLToPath } from 'node:url'
@@ -53,6 +54,7 @@ export function seed(db) {
       db.prepare('INSERT INTO announcements (title, published_at) VALUES (?, ?)').run(title, date)
     }
   })
+  seedDemoEvaluations(db)
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {

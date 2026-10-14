@@ -1,3 +1,5 @@
+import { DEMO_EVALUATIONS } from '../../../shared/demoEvaluations.js'
+import { summarize } from '../../../shared/evaluations.js'
 // MOCK DATA ONLY — every person, number and account here is fictional.
 // This file (with db.js / handlers.js) is the only place that knows about mock data,
 // so it can be deleted when the real API is connected (see src/api.js).
@@ -100,7 +102,11 @@ export function buildSeed() {
     { id: 4, title: 'แจ้งปรับปรุงระบบข้อมูลพนักงาน', publishedAt: '2026-09-12' },
   ]
 
-  return { users, employees, salaries, history, announcements }
+  const evaluations = DEMO_EVALUATIONS.map((record, index) => {
+    const employee = employees.find(e => e.employeeCode === record.employeeCode)
+    return { ...record, id: index + 1, employeeId: employee.id, scores: [...record.scores], ...summarize(record.scores) }
+  })
+  return { users, employees, salaries, history, announcements, evaluations }
 }
 
 // Shown on the login page as one-click demo accounts

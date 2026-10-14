@@ -83,7 +83,7 @@ npm start                # http://localhost:3001  (หรือ npm run dev เ�
 | UC-05 | จัดการเงินเดือน | `/salaries` |
 | UC-06 | จัดการพนักงานที่ลาออก | `/resigned` (แจ้งลาออกที่ `/employees`) |
 
-หน้าอื่น: `/dashboard` (หน้าหลัก) และ `/evaluations` (ผลการประเมิน — ยังเป็นหน้า "ยังไม่เปิดให้ใช้งาน" เพราะไม่มี Use Case รองรับ)
+หน้าอื่น: `/dashboard` (หน้าหลัก) และ `/evaluations` (Employee Performance Evaluation — ค้นหารหัสพนักงานและดู/เพิ่มผลการประเมิน)
 
 ## สิทธิ์ (RBAC) — กำหนดที่ `backend/src/rbac.js` (และ `frontend/src/mock/rbac.js` สำหรับ mock)
 
@@ -155,3 +155,80 @@ git push -u origin feature/backend-development
 อย่า push ตรงเข้า `main` — เปิด Pull Request จาก `feature/backend-development` แทน
 
 > ไฟล์ `.env` ไม่ถูกเก็บใน Git ให้คัดลอกจาก `backend/.env.example` แล้วสร้าง `JWT_SECRET` ของตัวเอง
+
+
+### Employee Performance Evaluation
+
+`/evaluations` uses the existing layout and employee records. Managers can search,
+view history and create evaluations; employees may search and view only their own
+records. Other roles cannot access evaluation records. These permissions are enforced
+by Express, including direct API requests. No edit/delete endpoint is provided.
+
+API (authenticated bearer token):
+- `GET /api/evaluations/employee?employeeCode=E104`: exact, case-insensitive ID lookup.
+- `GET /api/evaluations?employeeCode=E104`: employee and evaluation history, newest first.
+- `POST /api/evaluations`: `employeeCode`, `evaluationPeriod`, `evaluationDate`,
+  `evaluatorName`, six integer `scores` (1–5), optional `deficiencies` and `recommendations`.
+  Returns the saved `evaluation` with server-calculated total and rating (HTTP 201).
+
+The active backend is SQLite (`backend/src/db.js`). Migration 005 adds
+`performance_evaluations` with employee/user foreign keys and score constraints.
+The SQLite migration runner now uses compatible versions of existing PostgreSQL-only
+migrations 003/004 from `backend/src/migrations/sqlite`; original SQL files are preserved.
+PostgreSQL/Supabase helper files already present in this workspace are not connected
+to the active server; this feature does not claim a Supabase deployment.
+
+To use persistent records, set `VITE_USE_MOCK=false` in `frontend/.env`, configure
+`backend/.env` with the existing database path and a private JWT secret, then run
+`npm run migrate` and `npm start` in `backend`, and `npm run dev` in `frontend`.
+Server startup also applies pending migrations. Do not seed a production database.
+Demo mode shows existing fictional employees and seven Thai evaluation fixtures
+for E100–E105 (two historical records for E100). These fixtures are recreated from
+the mock seed after refresh; they are not database writes. Saving is disabled and
+the mock API rejects writes rather than reporting a fictitious save.
+
+Feature verification: `npm test` in backend; `npm test -- src --maxWorkers=1`,
+`npm run lint`, and `npm run build` in frontend. The separate pre-existing
+`frontend/integration` suite requires its PostgreSQL test setup; the unfiltered
+frontend test command includes that suite. Evaluation API tests use a temporary SQLite database
+and fictional employees, verify role checks and validation, and close/reopen the
+saved database before retrieving history.
+
+
+### ข้อมูลตัวอย่างผลการประเมิน
+
+ชุดข้อมูลสมมติอยู่ใน `shared/demoEvaluations.js` ใช้ร่วมกันระหว่าง seed ของ
+โหมดสาธิตและ SQLite โดยอ้างอิงรหัสพนักงานเดิม ไม่สร้างพนักงานซ้ำ:
+
+| รหัสพนักงาน | คะแนนรวมล่าสุด | ระดับผลการประเมิน |
+| --- | --- | --- |
+| E100 | 29/30 | ดีเยี่ยม (มีรอบก่อนหน้า 25/30 ดีมาก) |
+| E101 | 19/30 | ดี |
+| E102 | 15/30 | ต้องปรับปรุง |
+| E103 | 9/30 | ต้องปรับปรุงเร่งด่วน |
+| E104 | 24/30 | ดีมาก |
+| E105 | 28/30 | ดีเยี่ยม |
+
+ทุกรายการระบุ “ข้อมูลตัวอย่าง” ในรอบการประเมิน และใช้ผู้ประเมินสมมติ
+หัวข้อ เกณฑ์คะแนน ระดับผลการประเมิน ข้อความแจ้งเตือน และข้อเสนอแนะเป็นภาษาไทย
+ค่า rating ภายใน API ยังคงเดิม โดยหน้าจอแปลงเป็นป้ายภาษาไทย
+
+ฐานข้อมูลสาธิตแยกจากข้อมูลจริง: `backend/data/evaluation-demo.db` (ไม่เก็บใน Git)
+สร้างใหม่ได้ด้วยคำสั่งต่อไปนี้จากโฟลเดอร์ `backend` เมื่อไฟล์ยังไม่มีข้อมูล:
+
+```sh
+DB_PATH=./data/evaluation-demo.db NODE_ENV=development node src/seed.js
+```
+
+หากต้องการใช้ฐานข้อมูลนี้กับระบบจริง ให้ตั้ง `DB_PATH=./data/evaluation-demo.db`
+ใน `backend/.env` พร้อม JWT_SECRET ของระบบ และตั้ง `VITE_USE_MOCK=false`
+ใน `frontend/.env` แล้วเริ่ม backend/frontend ตามเดิม
+สำหรับฐานข้อมูลสมมติเดิมที่ผ่าน migration แล้ว สามารถเพิ่มเฉพาะผลการประเมินได้ด้วย:
+
+```sh
+DB_PATH=./data/evaluation-demo.db NODE_ENV=development node src/seed-evaluations.js --demo-only
+```
+
+คำสั่งเพิ่มผลการประเมินตรวจสอบชื่อและแผนกของพนักงานสมมติก่อนเพิ่ม ไม่แก้ไขหรือลบ
+รายการเดิม และรันซ้ำไม่เพิ่มผลการประเมินซ้ำ ห้ามใช้กับฐานข้อมูลพนักงานจริง
+ไม่มีการเพิ่มข้อมูลสมมติผ่าน migration หรือการเริ่มเซิร์ฟเวอร์ตามปกติ

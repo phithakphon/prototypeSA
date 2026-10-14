@@ -1,4 +1,4 @@
-import { readdirSync, readFileSync } from 'node:fs'
+import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { join, dirname } from 'node:path'
 import { openDb } from './db.js'
@@ -15,7 +15,8 @@ export function migrate(db) {
     if (done.has(file)) continue
     db.exec('BEGIN')
     try {
-      db.exec(readFileSync(join(dir, file), 'utf8'))
+      const sqliteFile = join(dir, 'sqlite', file)
+      db.exec(readFileSync(existsSync(sqliteFile) ? sqliteFile : join(dir, file), 'utf8'))
       db.prepare('INSERT INTO schema_migrations (name) VALUES (?)').run(file)
       db.exec('COMMIT')
     } catch (err) {
