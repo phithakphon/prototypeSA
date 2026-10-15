@@ -37,6 +37,8 @@ export const PERMISSIONS = {
   'salary:manage': [ROLES.FINANCE],
   // ดูเงินเดือนของผู้อื่นแบบอ่านอย่างเดียว (ไม่เพิ่ม/แก้ไข)
   'salary:view': [ROLES.FINANCE, ROLES.HR],
+  // ตรวจสอบและผูกบัญชีที่สมัครเองกับระเบียนพนักงาน (ไม่เปลี่ยนบทบาทของบัญชี)
+  'account:link': [ROLES.HR],
 }
 
 export function permissionsFor(role) {

@@ -3,6 +3,7 @@ import { authRouter } from './routes/auth.js'
 import { employeesRouter } from './routes/employees.js'
 import { salariesRouter } from './routes/salaries.js'
 import { dashboardRouter } from './routes/dashboard.js'
+import { accountsRouter } from './routes/accounts.js'
 import { authenticate } from './middleware/auth.js'
 import { HttpError } from './errors.js'
 import { isDbUnavailable } from './db.js'
@@ -21,6 +22,7 @@ export function createApp({ db, config }) {
   app.use('/api/auth', authRouter({ db, config }))
   app.use('/api/dashboard', auth, dashboardRouter({ db }))
   app.use('/api/employees', auth, employeesRouter({ db }))
+  app.use('/api/accounts', auth, accountsRouter({ db }))
   app.use('/api', auth, salariesRouter({ db }))
 
   app.use('/api', (_req, _res, next) => next(new HttpError(404, 'ไม่พบเส้นทางที่ร้องขอ')))

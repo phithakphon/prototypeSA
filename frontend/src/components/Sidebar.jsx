@@ -1,6 +1,6 @@
 import { NavLink, useNavigate } from 'react-router-dom'
 import {
-  ClipboardCheck, History, House, LogOut, PanelLeftClose, PanelLeftOpen, Search, SlidersHorizontal, UserMinus, Wallet, X,
+  ClipboardCheck, History, House, LogOut, PanelLeftClose, PanelLeftOpen, Search, SlidersHorizontal, UserMinus, UserCheck, Wallet, X,
 } from 'lucide-react'
 import { useAuth } from '../auth/auth'
 
@@ -14,6 +14,7 @@ const NAV_ITEMS = [
   { to: '/employees', label: 'จัดการข้อมูลพนักงาน', icon: SlidersHorizontal, end: true, permission: 'employee:manage' },
   { to: '/resigned', label: 'พนักงานที่ลาออก', icon: UserMinus, permission: 'resignation:manage' },
   { to: '/salaries', label: 'จัดการเงินเดือน', icon: Wallet, permission: 'salary:manage' },
+  { to: '/accounts', label: 'ผูกบัญชีผู้ใช้', icon: UserCheck, permission: 'account:link' },
   { to: '/evaluations', label: 'ผลการประเมิน', icon: ClipboardCheck },
 ]
 

@@ -11,6 +11,7 @@ import { EmployeeRoute, HistoryRoute } from './pages/EmployeeAccess.jsx'
 import EmployeeManage from './pages/EmployeeManage.jsx'
 import ResignedEmployees from './pages/ResignedEmployees.jsx'
 import SalaryManage from './pages/SalaryManage.jsx'
+import AccountLinking from './pages/AccountLinking.jsx'
 import ComingSoon from './pages/ComingSoon.jsx'
 
 const guard = (permission, element) => (
@@ -40,6 +41,7 @@ export default function AppRoutes() {
               <Route path="/employees" element={guard('employee:manage', <EmployeeManage />)} />
               <Route path="/resigned" element={guard('resignation:manage', <ResignedEmployees />)} />
               <Route path="/salaries" element={guard('salary:manage', <SalaryManage />)} />
+              <Route path="/accounts" element={guard('account:link', <AccountLinking />)} />
               <Route path="/evaluations" element={<ComingSoon title="ผลการประเมิน" />} />
             </Route>
           </Route>
