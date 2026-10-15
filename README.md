@@ -14,14 +14,14 @@ prototypeSA/
 │       ├── components/  AppLayout, Sidebar, Modal, ConfirmDialog, Toast, EmployeeFinder ...
 │       ├── pages/     Dashboard, EmployeeDetail, EmployeeManage, ResignedEmployees, SalaryManage
 │       └── test/      เทสต์ flow ของ UI (Vitest + Testing Library)
-└── backend/           Node.js + Express + SQLite (node:sqlite) + JWT + bcrypt
+└── backend/           Node.js + Express + PostgreSQL (Supabase, ไลบรารี `pg`) + JWT + bcrypt
     ├── src/           app, routes, rbac, validate, migrations, seed
     └── test/          เทสต์ API (node:test)
 ```
 
 ## เริ่มใช้งาน
 
-ต้องใช้ Node.js >= 22.13 (backend ใช้ `node:sqlite`)
+ต้องใช้ Node.js >= 22.13
 
 ### Frontend (โหมด mock — ไม่ต้องเปิด backend)
 
@@ -46,9 +46,9 @@ npm run dev          # http://localhost:5173
 ```bash
 cd backend
 npm install
-cp .env.example .env     # แล้วตั้งค่า JWT_SECRET (วิธีสร้างค่าอยู่ในไฟล์ .env.example)
-npm run migrate          # สร้างตาราง
-npm run seed             # ข้อมูลทดสอบ + บัญชีทดสอบชุดเดียวกับด้านบน (ห้ามใช้ใน production)
+cp .env.example .env     # ตั้งค่า JWT_SECRET และ DATABASE_URL (Supabase) — รายละเอียดใน backend/README.md
+npm run migrate          # สร้างตารางใน PostgreSQL
+npm run seed             # ข้อมูลทดสอบ + บัญชีทดสอบ (ห้ามใช้ใน production; บล็อกถ้า DB เป็นระยะไกลเว้นแต่ ALLOW_REMOTE_SEED=yes)
 npm start                # http://localhost:3001  (หรือ npm run dev เพื่อ watch)
 ```
 
@@ -61,11 +61,11 @@ npm start                # http://localhost:3001  (หรือ npm run dev เ�
 | frontend | `npm test` | Vitest (28 เทสต์: mock API + UI flow) |
 | backend | `npm start` / `npm run dev` | รันเซิร์ฟเวอร์ |
 | backend | `npm run migrate` / `npm run seed` | migration / ข้อมูลทดสอบ |
-| backend | `npm test` | เทสต์ API 14 รายการ (ใช้ DB ในหน่วยความจำ ไม่แตะไฟล์ DB จริง) |
+| backend | `npm test` | เทสต์ API + DB + RBAC + ขอบเขตแผนก + สมัครสมาชิก + ผูกบัญชี + reinstate 45 รายการ (ใช้ PostgreSQL ในหน่วยความจำ (PGlite) ไม่แตะ Supabase) |
 
 ## สลับระหว่าง Mock กับ API จริง
 
-ค่าเริ่มต้นของ frontend คือ **mock** (`USE_MOCK` ใน `frontend/src/api.js`)
+ค่าเริ่มต้นของ frontend ตอนพัฒนา/ทดสอบคือ **mock** (`USE_MOCK` ใน `frontend/src/api.js`) แต่ **production build ใช้ mock ไม่ได้เด็ดขาด**: `USE_MOCK` ถูกบังคับเป็น `false` ตอน build, โค้ด mock ไม่ถูกรวมใน bundle และ `vite build` จะล้มเหลวถ้าตั้ง `VITE_USE_MOCK=true`
 
 - ใช้ backend จริง: สร้าง `frontend/.env.local` ใส่ `VITE_USE_MOCK=false` แล้วรัน backend ที่พอร์ต 3001 — Vite จะ proxy `/api` ไปที่ `http://localhost:3001` (ตั้งใน `vite.config.js`)
 - กลับไปใช้ mock: ลบบรรทัดนั้น หรือตั้งเป็น `true`
@@ -90,12 +90,14 @@ npm start                # http://localhost:3001  (หรือ npm run dev เ�
 | Use Case | สิทธิ์ | บทบาท |
 |---|---|---|
 | UC-01 | — | ทุกบทบาท |
-| UC-02 | `employee:search` | ทุกบทบาท |
-| UC-03 | `employee:view` | ทุกบทบาท (ข้อมูลทั่วไป + ประวัติ) |
-| UC-03 (ข้อมูลลับ) | `employee:viewConfidential` | ผู้จัดการ และเจ้าของข้อมูลเอง |
+| UC-02 | `employee:search` | ทุกบทบาทยกเว้นพนักงาน |
+| UC-03 | `employee:view` | ทุกบทบาท (พนักงาน `employee:selfOnly` เปิดได้เฉพาะระเบียนของตนเอง) |
+| UC-03 (ข้อมูลลับ) | `employee:viewConfidential` | ผู้จัดการ, ฝ่ายบุคคล, ผู้บริหาร และเจ้าของข้อมูลเอง |
 | UC-04 | `employee:manage` | ผู้จัดการ |
 | UC-06 | `resignation:manage` | ผู้จัดการ |
-| UC-05 | `salary:manage` | ฝ่ายการเงิน (เจ้าของดูเงินเดือนตัวเองได้แบบอ่านอย่างเดียว) |
+| UC-05 | `salary:manage` | ฝ่ายการเงิน (เพิ่ม/แก้ไข) |
+| — | `account:link` | ฝ่ายบุคคล (ตรวจสอบและผูกบัญชีที่สมัครเองกับพนักงาน — ไม่เปลี่ยนบทบาทของบัญชี) |
+| UC-05 | `salary:view` | ฝ่ายการเงิน, ฝ่ายบุคคล (อ่านอย่างเดียว) และเจ้าของดูเงินเดือนตัวเอง |
 
 ข้อกำหนดเหล่านี้อ้างอิง Use Case Diagram ของโปรเจกต์ จุดที่ไดอะแกรมไม่ชัดเจนและทีมเลือกตีความไว้: เจ้าของข้อมูลดูเงินเดือนตนเองได้, ผู้จัดการดูข้อมูลส่วนบุคคลของทุกคนได้ (ต้องใช้แก้ไขตาม UC-04)
 
@@ -106,6 +108,12 @@ npm start                # http://localhost:3001  (หรือ npm run dev เ�
 | Method | Path | สิทธิ์ |
 |---|---|---|
 | POST | `/api/auth/login` | สาธารณะ (จำกัดการลองผิด 5 ครั้ง/15 นาที) |
+| POST | `/api/auth/register` | สาธารณะ (จำกัด 10 บัญชี/ชั่วโมง/IP) — สร้างบัญชีบทบาท `employee` ที่ยังไม่ผูกกับพนักงาน ไม่เห็นข้อมูลใด ๆ จนกว่าผู้ดูแลจะผูกบัญชี |
+| GET | `/api/accounts/pending` | `account:link` — บัญชีพนักงานที่ยังไม่ผูก |
+| GET | `/api/accounts/linkable-employees?q=` | `account:link` — พนักงานที่ยังปฏิบัติงานและยังไม่มีบัญชี |
+| POST | `/api/accounts/:id/link` | `account:link` — body `{ employeeId, employeeCode }` (ต้องพิมพ์รหัสพนักงานยืนยัน) |
+| POST | `/api/accounts/:id/unlink` | `account:link` — ยกเลิกการผูก (เฉพาะบัญชีบทบาทพนักงาน) |
+| POST | `/api/employees/:id/reinstate` | `resignation:manage` (บันทึก history `reinstated`) |
 | GET | `/api/auth/me` | ผู้ใช้ที่เข้าสู่ระบบ |
 | GET | `/api/dashboard/summary` | ผู้ใช้ที่เข้าสู่ระบบ |
 | GET | `/api/employees?q=&department=&status=` | `employee:search` |
@@ -120,22 +128,21 @@ npm start                # http://localhost:3001  (หรือ npm run dev เ�
 | POST | `/api/employees/:id/salaries` | `salary:manage` |
 | PUT | `/api/salaries/:id` | `salary:manage` |
 
-ฐานข้อมูล SQLite (`backend/src/migrations/001_init.sql`): `employees`, `users`, `salaries`, `employee_history`, `announcements`, `schema_migrations`
+ฐานข้อมูล PostgreSQL บน Supabase (`backend/src/migrations/001_init.sql`; SQLite เดิมเก็บไว้เป็นต้นทางย้ายข้อมูลเท่านั้น — ดู `backend/README.md`): `employees`, `users`, `salaries`, `employee_history`, `announcements`, `schema_migrations`
 
 ## ข้อจำกัดที่ทราบ
 
-- Frontend มีปุ่ม **"กลับเข้าทำงาน"** (UC-06) และเรียก `POST /api/employees/:id/reinstate` ซึ่ง **backend ยังไม่มี endpoint นี้** (มีเฉพาะใน mock) — ถ้าใช้ API จริงปุ่มนี้จะได้ 404 จนกว่าจะเพิ่มฝั่ง backend
 - Frontend ยังไม่เคยทดสอบแบบ end-to-end กับ backend จริง (`VITE_USE_MOCK=false`) — เป็นงานแรกที่ควรตรวจ
 - JWT เก็บใน `localStorage` (พอสำหรับงานเรียน; production ควรใช้ cookie แบบ httpOnly)
 - ไม่มีหน้าจัดการบัญชีผู้ใช้ — บัญชีทั้งหมดมาจาก `npm run seed`
 - `announcements` มีแต่ endpoint อ่าน (ผ่าน dashboard) ยังไม่มีการเพิ่ม/แก้ไขประกาศ
 - ฟอนต์ Kanit โหลดจาก Google Fonts ต้องมีอินเทอร์เน็ต
-- `node:sqlite` ยังเป็น experimental (จะมีข้อความเตือนตอนรัน)
+- `node:sqlite` ใช้เฉพาะสคริปต์ย้ายข้อมูลจาก SQLite เดิม (experimental จึงมีข้อความเตือนตอนรัน)
+- บัญชีที่สมัครเองต้องให้ฝ่ายบุคคลผูกกับพนักงานที่หน้า "ผูกบัญชีผู้ใช้" (`/accounts`) ก่อน จึงจะเห็นข้อมูลของตนเอง
 
 ## ขั้นตอนแนะนำสำหรับพัฒนา backend ต่อ
 
 1. ตั้ง `VITE_USE_MOCK=false` แล้วไล่ทดสอบทุกหน้ากับ backend จริง แก้จุดที่รูปแบบข้อมูลไม่ตรงกัน
-2. เพิ่ม endpoint `POST /api/employees/:id/reinstate` (สิทธิ์ `resignation:manage`, บันทึก history `reinstated`) หรือเอาปุ่มออกจาก frontend
 3. เพิ่มการจัดการประกาศ/ข่าวสาร และ (ถ้าต้องการ) การจัดการผู้ใช้
 4. พิจารณาย้าย token ไป httpOnly cookie, เพิ่ม audit log สำหรับการแก้ไขเงินเดือน
 5. เพิ่ม integration test ระหว่าง frontend–backend
