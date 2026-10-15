@@ -31,9 +31,9 @@ export function authRouter({ db, config }) {
     else f.count += 1
   }
 
-  const describe = (user) => {
+  const describe = async (user) => {
     const emp = user.employee_id
-      ? db.prepare('SELECT first_name, last_name FROM employees WHERE id = ?').get(user.employee_id)
+      ? (await db.query('SELECT first_name, last_name FROM employees WHERE id = $1', [user.employee_id])).rows[0]
       : null
     return {
       id: user.id,
@@ -47,7 +47,7 @@ export function authRouter({ db, config }) {
   }
 
   // UC-01
-  router.post('/login', (req, res, next) => {
+  router.post('/login', async (req, res, next) => {
     const { username, password } = req.body || {}
     if (typeof username !== 'string' || typeof password !== 'string' || !username.trim() || !password) {
       return next(badRequest('กรุณากรอกชื่อผู้ใช้และรหัสผ่าน'))
@@ -56,8 +56,8 @@ export function authRouter({ db, config }) {
     if (isLocked(key)) {
       return next(new HttpError(429, 'พยายามเข้าสู่ระบบผิดหลายครั้งเกินไป กรุณาลองใหม่ภายหลัง 15 นาที'))
     }
-    const user = db.prepare('SELECT * FROM users WHERE username = ?').get(username.trim())
-    const ok = bcrypt.compareSync(password, user ? user.password_hash : DUMMY_HASH)
+    const user = (await db.query('SELECT * FROM users WHERE username = $1', [username.trim()])).rows[0]
+    const ok = await bcrypt.compare(password, user ? user.password_hash : DUMMY_HASH)
     if (!user || !ok) {
       recordFail(key)
       return next(new HttpError(401, 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง'))
@@ -67,12 +67,12 @@ export function authRouter({ db, config }) {
       algorithm: 'HS256',
       expiresIn: config.jwtExpiresIn,
     })
-    res.json({ token, user: describe(user) })
+    res.json({ token, user: await describe(user) })
   })
 
-  router.get('/me', authenticate({ db, config }), (req, res) => {
-    const user = db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.id)
-    res.json({ user: describe(user) })
+  router.get('/me', authenticate({ db, config }), async (req, res) => {
+    const user = (await db.query('SELECT * FROM users WHERE id = $1', [req.user.id])).rows[0]
+    res.json({ user: await describe(user) })
   })
 
   return router

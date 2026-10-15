@@ -1,5 +1,4 @@
 import { Router } from 'express'
-import { transaction } from '../db.js'
 import { can } from '../rbac.js'
 import { requirePermission } from '../middleware/auth.js'
 import { badRequest, conflict, notFound } from '../errors.js'
@@ -33,32 +32,33 @@ const toHistory = (h) => ({
 
 export function parseId(value) {
   const n = Number(value)
-  if (!Number.isInteger(n) || n <= 0) throw notFound()
+  // PostgreSQL INTEGER range: larger ids can never exist (and would raise a database error)
+  if (!Number.isInteger(n) || n <= 0 || n > 2147483647) throw notFound()
   return n
 }
 
+// PostgreSQL's default LIKE escape character is the backslash
 const escapeLike = (s) => s.replace(/[\\%_]/g, (c) => `\\${c}`)
 
 export function employeesRouter({ db }) {
   const router = Router()
 
-  const getEmployee = (id) => {
-    const row = db.prepare('SELECT * FROM employees WHERE id = ?').get(id)
+  const getEmployee = async (id) => {
+    const row = (await db.query('SELECT * FROM employees WHERE id = $1', [id])).rows[0]
     if (!row) throw notFound('ไม่พบข้อมูลพนักงาน')
     return row
   }
-  const addHistory = (employeeId, type, description, date, userId) =>
-    db
-      .prepare(
-        'INSERT INTO employee_history (employee_id, event_type, description, event_date, created_by) VALUES (?, ?, ?, ?, ?)',
-      )
-      .run(employeeId, type, description, date, userId)
+  const addHistory = (q, employeeId, type, description, date, userId) =>
+    q.query(
+      'INSERT INTO employee_history (employee_id, event_type, description, event_date, created_by) VALUES ($1, $2, $3, $4, $5)',
+      [employeeId, type, description, date, userId],
+    )
 
-  const codeTaken = (code, exceptId = 0) =>
-    Boolean(db.prepare('SELECT 1 FROM employees WHERE employee_code = ? AND id <> ?').get(code, exceptId))
+  const codeTaken = async (code, exceptId = 0) =>
+    Boolean((await db.query('SELECT 1 FROM employees WHERE employee_code = $1 AND id <> $2', [code, exceptId])).rows[0])
 
   // UC-02: search by code, name or department
-  router.get('/', requirePermission('employee:search'), (req, res) => {
+  router.get('/', requirePermission('employee:search'), async (req, res) => {
     const q = typeof req.query.q === 'string' ? req.query.q.trim().slice(0, 100) : ''
     const department = typeof req.query.department === 'string' ? req.query.department.trim() : ''
     const status = typeof req.query.status === 'string' ? req.query.status : ''
@@ -66,40 +66,35 @@ export function employeesRouter({ db }) {
 
     const where = []
     const params = []
+    const param = (v) => `$${params.push(v)}`
     if (q) {
-      const like = `%${escapeLike(q)}%`
+      const like = param(`%${escapeLike(q)}%`)
       where.push(
-        "(employee_code LIKE ? ESCAPE '\\' OR first_name LIKE ? ESCAPE '\\' OR last_name LIKE ? ESCAPE '\\' " +
-          "OR (first_name || ' ' || last_name) LIKE ? ESCAPE '\\' OR department LIKE ? ESCAPE '\\')",
+        `(employee_code ILIKE ${like} OR first_name ILIKE ${like} OR last_name ILIKE ${like} ` +
+          `OR (first_name || ' ' || last_name) ILIKE ${like} OR department ILIKE ${like})`,
       )
-      params.push(like, like, like, like, like)
     }
-    if (department) {
-      where.push('department = ?')
-      params.push(department)
-    }
-    if (status) {
-      where.push('status = ?')
-      params.push(status)
-    }
+    if (department) where.push(`department = ${param(department)}`)
+    if (status) where.push(`status = ${param(status)}`)
     const clause = where.length ? `WHERE ${where.join(' AND ')}` : ''
-    const total = db.prepare(`SELECT COUNT(*) AS n FROM employees ${clause}`).get(...params).n
-    const rows = db
-      .prepare(`SELECT * FROM employees ${clause} ORDER BY employee_code LIMIT 200`)
-      .all(...params)
+    const total = (await db.query(`SELECT COUNT(*)::int AS n FROM employees ${clause}`, params)).rows[0].n
+    const { rows } = await db.query(
+      `SELECT * FROM employees ${clause} ORDER BY employee_code COLLATE "C" LIMIT 200`,
+      params,
+    )
     res.json({ total, employees: rows.map(toPublic) })
   })
 
-  router.get('/departments', requirePermission('employee:search'), (_req, res) => {
-    const rows = db.prepare('SELECT DISTINCT department FROM employees ORDER BY department').all()
+  router.get('/departments', requirePermission('employee:search'), async (_req, res) => {
+    const { rows } = await db.query('SELECT DISTINCT department FROM employees ORDER BY department COLLATE "C"')
     res.json({ departments: rows.map((r) => r.department) })
   })
 
   // UC-06: list resigned employees
-  router.get('/resigned', requirePermission('resignation:manage'), (_req, res) => {
-    const rows = db
-      .prepare("SELECT * FROM employees WHERE status = 'resigned' ORDER BY resignation_date DESC, id DESC")
-      .all()
+  router.get('/resigned', requirePermission('resignation:manage'), async (_req, res) => {
+    const { rows } = await db.query(
+      "SELECT * FROM employees WHERE status = 'resigned' ORDER BY resignation_date DESC, id DESC",
+    )
     res.json({
       employees: rows.map((r) => ({
         ...toPublic(r),
@@ -110,13 +105,14 @@ export function employeesRouter({ db }) {
   })
 
   // UC-03: details + history
-  router.get('/:id', requirePermission('employee:view'), (req, res) => {
-    const row = getEmployee(parseId(req.params.id))
+  router.get('/:id', requirePermission('employee:view'), async (req, res) => {
+    const row = await getEmployee(parseId(req.params.id))
     const isSelf = req.user.employeeId === row.id
     const confidentialVisible = isSelf || can(req.user.role, 'employee:viewConfidential')
-    const history = db
-      .prepare('SELECT * FROM employee_history WHERE employee_id = ? ORDER BY event_date DESC, id DESC')
-      .all(row.id)
+    const { rows: history } = await db.query(
+      'SELECT * FROM employee_history WHERE employee_id = $1 ORDER BY event_date DESC, id DESC',
+      [row.id],
+    )
     res.json({
       employee: {
         ...toPublic(row),
@@ -130,52 +126,48 @@ export function employeesRouter({ db }) {
   })
 
   // UC-04: create
-  router.post('/', requirePermission('employee:manage'), (req, res) => {
+  router.post('/', requirePermission('employee:manage'), async (req, res) => {
     const data = parseEmployee(req.body)
-    if (codeTaken(data.employeeCode)) {
-      throw conflict('รหัสพนักงานนี้มีอยู่ในระบบแล้ว')
-    }
-    const id = transaction(db, () => {
-      const info = db
-        .prepare(
-          `INSERT INTO employees (employee_code, first_name, last_name, department, position, start_date,
-             national_id, phone, email, address) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        )
-        .run(
+    if (await codeTaken(data.employeeCode)) throw conflict('รหัสพนักงานนี้มีอยู่ในระบบแล้ว')
+    const id = await db.transaction(async (tx) => {
+      const { rows } = await tx.query(
+        `INSERT INTO employees (employee_code, first_name, last_name, department, position, start_date,
+           national_id, phone, email, address) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id`,
+        [
           data.employeeCode, data.firstName, data.lastName, data.department, data.position,
           data.startDate, data.nationalId, data.phone, data.email, data.address,
-        )
-      const newId = Number(info.lastInsertRowid)
-      addHistory(newId, 'hired', `เริ่มงานในตำแหน่ง ${data.position} แผนก ${data.department}`, data.startDate, req.user.id)
+        ],
+      )
+      const newId = rows[0].id
+      await addHistory(tx, newId, 'hired', `เริ่มงานในตำแหน่ง ${data.position} แผนก ${data.department}`, data.startDate, req.user.id)
       return newId
     })
-    res.status(201).json({ employee: toPublic(getEmployee(id)) })
+    res.status(201).json({ employee: toPublic(await getEmployee(id)) })
   })
 
   // UC-04: update (status changes are only possible through the resign endpoint)
-  router.put('/:id', requirePermission('employee:manage'), (req, res) => {
-    const old = getEmployee(parseId(req.params.id))
+  router.put('/:id', requirePermission('employee:manage'), async (req, res) => {
+    const old = await getEmployee(parseId(req.params.id))
     const data = parseEmployee(req.body)
-    if (codeTaken(data.employeeCode, old.id)) {
-      throw conflict('รหัสพนักงานนี้มีอยู่ในระบบแล้ว')
-    }
-    transaction(db, () => {
-      db.prepare(
-        `UPDATE employees SET employee_code = ?, first_name = ?, last_name = ?, department = ?, position = ?,
-           start_date = ?, national_id = ?, phone = ?, email = ?, address = ?, updated_at = datetime('now')
-         WHERE id = ?`,
-      ).run(
-        data.employeeCode, data.firstName, data.lastName, data.department, data.position,
-        data.startDate, data.nationalId, data.phone, data.email, data.address, old.id,
+    if (await codeTaken(data.employeeCode, old.id)) throw conflict('รหัสพนักงานนี้มีอยู่ในระบบแล้ว')
+    await db.transaction(async (tx) => {
+      await tx.query(
+        `UPDATE employees SET employee_code = $1, first_name = $2, last_name = $3, department = $4, position = $5,
+           start_date = $6, national_id = $7, phone = $8, email = $9, address = $10, updated_at = now()
+         WHERE id = $11`,
+        [
+          data.employeeCode, data.firstName, data.lastName, data.department, data.position,
+          data.startDate, data.nationalId, data.phone, data.email, data.address, old.id,
+        ],
       )
       const date = today()
       let logged = false
       if (old.position !== data.position) {
-        addHistory(old.id, 'position_changed', `เปลี่ยนตำแหน่งจาก ${old.position} เป็น ${data.position}`, date, req.user.id)
+        await addHistory(tx, old.id, 'position_changed', `เปลี่ยนตำแหน่งจาก ${old.position} เป็น ${data.position}`, date, req.user.id)
         logged = true
       }
       if (old.department !== data.department) {
-        addHistory(old.id, 'department_changed', `ย้ายแผนกจาก ${old.department} เป็น ${data.department}`, date, req.user.id)
+        await addHistory(tx, old.id, 'department_changed', `ย้ายแผนกจาก ${old.department} เป็น ${data.department}`, date, req.user.id)
         logged = true
       }
       const changedOther = ['employee_code', 'first_name', 'last_name', 'start_date', 'national_id', 'phone', 'email', 'address']
@@ -183,14 +175,14 @@ export function employeesRouter({ db }) {
           const key = ['employeeCode', 'firstName', 'lastName', 'startDate', 'nationalId', 'phone', 'email', 'address'][i]
           return (old[col] ?? null) !== (data[key] ?? null)
         })
-      if (!logged && changedOther) addHistory(old.id, 'updated', 'แก้ไขข้อมูลพนักงาน', date, req.user.id)
+      if (!logged && changedOther) await addHistory(tx, old.id, 'updated', 'แก้ไขข้อมูลพนักงาน', date, req.user.id)
     })
-    res.json({ employee: toPublic(getEmployee(old.id)) })
+    res.json({ employee: toPublic(await getEmployee(old.id)) })
   })
 
   // UC-06: mark as resigned (record is preserved, never deleted)
-  router.post('/:id/resign', requirePermission('resignation:manage'), (req, res) => {
-    const emp = getEmployee(parseId(req.params.id))
+  router.post('/:id/resign', requirePermission('resignation:manage'), async (req, res) => {
+    const emp = await getEmployee(parseId(req.params.id))
     const { resignationDate, reason } = parseResignation(req.body)
     if (emp.status === 'resigned') throw conflict('พนักงานคนนี้ลาออกแล้ว')
     if (resignationDate < emp.start_date) {
@@ -199,14 +191,15 @@ export function employeesRouter({ db }) {
     if (resignationDate > today()) {
       throw badRequest('ข้อมูลการลาออกไม่ถูกต้อง', { resignationDate: 'วันที่ลาออกต้องไม่เป็นวันในอนาคต' })
     }
-    transaction(db, () => {
-      db.prepare(
-        `UPDATE employees SET status = 'resigned', resignation_date = ?, resignation_reason = ?,
-           updated_at = datetime('now') WHERE id = ?`,
-      ).run(resignationDate, reason, emp.id)
-      addHistory(emp.id, 'resigned', 'ลาออกจากองค์กร', resignationDate, req.user.id)
+    await db.transaction(async (tx) => {
+      await tx.query(
+        `UPDATE employees SET status = 'resigned', resignation_date = $1, resignation_reason = $2,
+           updated_at = now() WHERE id = $3`,
+        [resignationDate, reason, emp.id],
+      )
+      await addHistory(tx, emp.id, 'resigned', 'ลาออกจากองค์กร', resignationDate, req.user.id)
     })
-    res.json({ employee: toPublic(getEmployee(emp.id)) })
+    res.json({ employee: toPublic(await getEmployee(emp.id)) })
   })
 
   return router

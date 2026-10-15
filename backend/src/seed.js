@@ -1,7 +1,8 @@
 // Test/development seed data. NOT for production: it creates well-known accounts.
 import bcrypt from 'bcrypt'
 import { fileURLToPath } from 'node:url'
-import { openDb, transaction } from './db.js'
+import { loadConfig } from './config.js'
+import { createDb } from './db.js'
 import { migrate } from './migrate.js'
 
 export const TEST_PASSWORD = 'Passw0rd!'
@@ -31,41 +32,92 @@ const ANNOUNCEMENTS = [
   ['แจ้งปรับปรุงระบบข้อมูลพนักงาน', '2026-09-12'],
 ]
 
-export function seed(db) {
-  const hash = bcrypt.hashSync(TEST_PASSWORD, 10)
-  transaction(db, () => {
+export async function seed(db, password = TEST_PASSWORD) {
+  const hash = await bcrypt.hash(password, 10)
+  await db.transaction(async (tx) => {
     for (const [code, first, last, dept, pos, start, salary, resigned, user] of EMPLOYEES) {
-      const info = db
-        .prepare(
-          `INSERT INTO employees (employee_code, first_name, last_name, department, position, start_date,
-             status, resignation_date, resignation_reason)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        )
-        .run(code, first, last, dept, pos, start, resigned ? 'resigned' : 'active', resigned, resigned ? 'ลาออกเพื่อไปศึกษาต่อ' : null)
-      const id = Number(info.lastInsertRowid)
-      const hist = db.prepare('INSERT INTO employee_history (employee_id, event_type, description, event_date) VALUES (?, ?, ?, ?)')
-      hist.run(id, 'hired', `เริ่มงานในตำแหน่ง ${pos} แผนก ${dept}`, start)
-      if (resigned) hist.run(id, 'resigned', 'ลาออกจากองค์กร', resigned)
-      db.prepare('INSERT INTO salaries (employee_id, amount, effective_date, note) VALUES (?, ?, ?, ?)').run(id, salary, start, 'เงินเดือนเริ่มต้น')
-      if (user) db.prepare('INSERT INTO users (username, password_hash, role, employee_id) VALUES (?, ?, ?, ?)').run(user[0], hash, user[1], id)
+      const { rows } = await tx.query(
+        `INSERT INTO employees (employee_code, first_name, last_name, department, position, start_date,
+           status, resignation_date, resignation_reason)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id`,
+        [code, first, last, dept, pos, start, resigned ? 'resigned' : 'active', resigned, resigned ? 'ลาออกเพื่อไปศึกษาต่อ' : null],
+      )
+      const id = rows[0].id
+      const hist = 'INSERT INTO employee_history (employee_id, event_type, description, event_date) VALUES ($1, $2, $3, $4)'
+      await tx.query(hist, [id, 'hired', `เริ่มงานในตำแหน่ง ${pos} แผนก ${dept}`, start])
+      if (resigned) await tx.query(hist, [id, 'resigned', 'ลาออกจากองค์กร', resigned])
+      await tx.query('INSERT INTO salaries (employee_id, amount, effective_date, note) VALUES ($1, $2, $3, $4)', [id, salary, start, 'เงินเดือนเริ่มต้น'])
+      if (user) await tx.query('INSERT INTO users (username, password_hash, role, employee_id) VALUES ($1, $2, $3, $4)', [user[0], hash, user[1], id])
     }
     for (const [title, date] of ANNOUNCEMENTS) {
-      db.prepare('INSERT INTO announcements (title, published_at) VALUES (?, ?)').run(title, date)
+      await tx.query('INSERT INTO announcements (title, published_at) VALUES ($1, $2)', [title, date])
     }
   })
 }
 
+// Read-only preview of what `seed` would insert. Runs SELECTs only (never migrates, never writes).
+export async function planSeed(db) {
+  const exists = async (t) => (await db.query('SELECT to_regclass($1) AS t', [`public.${t}`])).rows[0].t !== null
+  const missing = []
+  for (const t of ['employees', 'users', 'salaries', 'employee_history', 'announcements']) if (!(await exists(t))) missing.push(t)
+  if (missing.length) return { missing }
+  const count = async (t) => (await db.query(`SELECT COUNT(*)::int AS n FROM ${t}`)).rows[0].n
+  const codes = EMPLOYEES.map((e) => e[0])
+  const names = EMPLOYEES.filter((e) => e[8]).map((e) => e[8][0])
+  return {
+    missing,
+    existing: { employees: await count('employees'), users: await count('users'), salaries: await count('salaries'), employee_history: await count('employee_history'), announcements: await count('announcements') },
+    codeConflicts: (await db.query('SELECT employee_code FROM employees WHERE employee_code = ANY($1)', [codes])).rows.length,
+    usernameConflicts: (await db.query('SELECT username FROM users WHERE username = ANY($1)', [names])).rows.length,
+    planned: {
+      employees: EMPLOYEES.length,
+      users: names.length,
+      salaries: EMPLOYEES.length,
+      employee_history: EMPLOYEES.length + EMPLOYEES.filter((e) => e[7]).length,
+      announcements: ANNOUNCEMENTS.length,
+    },
+    accounts: EMPLOYEES.filter((e) => e[8]).map((e) => ({ username: e[8][0], role: e[8][1], employeeCode: e[0] })),
+  }
+}
+
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  if (process.env.NODE_ENV === 'production') {
-    console.error('ไม่อนุญาตให้ seed ข้อมูลทดสอบในโหมด production')
-    process.exit(1)
+  const config = loadConfig()
+  const dryRun = process.argv.includes('--dry-run')
+  if (!dryRun) {
+    if (process.env.NODE_ENV === 'production') {
+      console.error('ไม่อนุญาตให้ seed ข้อมูลทดสอบในโหมด production')
+      process.exit(1)
+    }
+    // Seed creates test accounts: never let it hit a remote database by accident, and never with the public default password.
+    if (!config.dbIsLocal && process.env.ALLOW_REMOTE_SEED !== 'yes') {
+      console.error('DATABASE_URL ชี้ไปยังฐานข้อมูลระยะไกล (เช่น Supabase) — seed ถูกบล็อก')
+      console.error('ถ้าต้องการจริง ๆ (เช่น Supabase โปรเจกต์ทดสอบ) ให้ตั้ง ALLOW_REMOTE_SEED=yes และ SEED_PASSWORD (อย่างน้อย 12 ตัวอักษร)')
+      process.exit(1)
+    }
+    if (!config.dbIsLocal && (process.env.SEED_PASSWORD || '').length < 12) {
+      console.error('seed ฐานข้อมูลระยะไกลต้องตั้ง SEED_PASSWORD อย่างน้อย 12 ตัวอักษร (ห้ามใช้รหัสผ่านทดสอบเริ่มต้นที่เปิดเผยใน README)')
+      process.exit(1)
+    }
   }
-  const db = openDb(process.env.DB_PATH || './data/app.db')
-  migrate(db)
-  if (db.prepare('SELECT COUNT(*) AS n FROM employees').get().n > 0) {
-    console.error('ฐานข้อมูลมีข้อมูลอยู่แล้ว จึงไม่ seed ซ้ำ (ลบไฟล์ data/app.db เพื่อเริ่มใหม่)')
-    process.exit(1)
+  const db = createDb(config)
+  try {
+    if (dryRun) {
+      console.log('โหมด DRY RUN — อ่านอย่างเดียว ไม่ migrate ไม่เขียนข้อมูล ไม่แสดงรหัสผ่าน')
+      console.log(JSON.stringify(await planSeed(db), null, 2))
+    } else {
+      await migrate(db)
+      if ((await db.query('SELECT COUNT(*)::int AS n FROM employees')).rows[0].n > 0) {
+        console.error('ฐานข้อมูลมีข้อมูลอยู่แล้ว จึงไม่ seed ซ้ำ (ไม่ลบหรือเขียนทับข้อมูลเดิม)')
+        process.exitCode = 1
+      } else {
+        await seed(db, process.env.SEED_PASSWORD || TEST_PASSWORD)
+        console.log(`seed สำเร็จ — บัญชีทดสอบ: manager1, hr1, finance1, executive1, employee1 ${process.env.SEED_PASSWORD ? '(รหัสผ่านตาม SEED_PASSWORD)' : `รหัสผ่าน ${TEST_PASSWORD}`}`)
+      }
+    }
+  } catch (err) {
+    console.error('seed ไม่สำเร็จ:', err.message)
+    process.exitCode = 1
+  } finally {
+    await db.close()
   }
-  seed(db)
-  console.log(`seed สำเร็จ — บัญชีทดสอบ: manager1, hr1, finance1, executive1, employee1 รหัสผ่าน ${TEST_PASSWORD}`)
 }

@@ -5,6 +5,7 @@ import { salariesRouter } from './routes/salaries.js'
 import { dashboardRouter } from './routes/dashboard.js'
 import { authenticate } from './middleware/auth.js'
 import { HttpError } from './errors.js'
+import { isDbUnavailable } from './db.js'
 
 export function createApp({ db, config }) {
   const app = express()
@@ -32,6 +33,11 @@ export function createApp({ db, config }) {
     if (err.type === 'entity.parse.failed' || err.type === 'entity.too.large') {
       return res.status(400).json({ message: 'รูปแบบข้อมูลที่ส่งมาไม่ถูกต้อง' })
     }
+    if (isDbUnavailable(err)) {
+      console.error('Database unavailable:', err.code || err.message)
+      return res.status(503).json({ message: 'ไม่สามารถเชื่อมต่อฐานข้อมูลได้ในขณะนี้ กรุณาลองใหม่อีกครั้งภายหลัง' })
+    }
+    if (err.code === '23505') return res.status(409).json({ message: 'ข้อมูลซ้ำกับที่มีอยู่ในระบบแล้ว' })
     // Log only the message: never request bodies (may contain salary/personal data)
     console.error('Unhandled error:', err.message)
     res.status(500).json({ message: 'เกิดข้อผิดพลาดภายในระบบ กรุณาลองใหม่อีกครั้ง' })

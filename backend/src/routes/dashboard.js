@@ -3,22 +3,26 @@ import { Router } from 'express'
 export function dashboardRouter({ db }) {
   const router = Router()
 
-  router.get('/summary', (_req, res) => {
-    const c = db
-      .prepare(
-        `SELECT COUNT(*) AS total,
-                COALESCE(SUM(status = 'active'), 0) AS active,
-                COALESCE(SUM(status = 'resigned'), 0) AS resigned
+  router.get('/summary', async (_req, res) => {
+    const news = (
+      await db.query('SELECT id, title, published_at FROM announcements ORDER BY published_at DESC, id DESC LIMIT 5')
+    ).rows
+    const announcements = news.map((n) => ({ id: n.id, title: n.title, publishedAt: n.published_at }))
+
+    const c = (
+      await db.query(
+        `SELECT COUNT(*)::int AS total,
+                COUNT(*) FILTER (WHERE status = 'active')::int AS active,
+                COUNT(*) FILTER (WHERE status = 'resigned')::int AS resigned
          FROM employees`,
       )
-      .get()
-    const recent = db
-      .prepare(
+    ).rows[0]
+    const recent = (
+      await db.query(
         `SELECT id, employee_code, first_name, last_name, position, start_date, status
          FROM employees ORDER BY id DESC LIMIT 5`,
       )
-      .all()
-    const news = db.prepare('SELECT id, title, published_at FROM announcements ORDER BY published_at DESC, id DESC LIMIT 5').all()
+    ).rows
     res.json({
       counts: { total: c.total, active: c.active, resigned: c.resigned },
       recentEmployees: recent.map((r) => ({
@@ -30,7 +34,7 @@ export function dashboardRouter({ db }) {
         startDate: r.start_date,
         status: r.status,
       })),
-      announcements: news.map((n) => ({ id: n.id, title: n.title, publishedAt: n.published_at })),
+      announcements,
     })
   })
 
