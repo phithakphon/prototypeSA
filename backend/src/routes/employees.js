@@ -1,8 +1,9 @@
 import { Router } from 'express'
 import { can } from '../rbac.js'
 import { requirePermission } from '../middleware/auth.js'
-import { badRequest, conflict, notFound } from '../errors.js'
+import { badRequest, conflict, forbidden, notFound } from '../errors.js'
 import { parseEmployee, parseResignation, today } from '../validate.js'
+import { SUPPORTED_DEPARTMENT, inScope } from '../scope.js'
 
 const toPublic = (r) => ({
   id: r.id,
@@ -43,9 +44,10 @@ const escapeLike = (s) => s.replace(/[\\%_]/g, (c) => `\\${c}`)
 export function employeesRouter({ db }) {
   const router = Router()
 
-  const getEmployee = async (id) => {
+  // Out-of-scope records look exactly like missing ones (404), except the caller's own record.
+  const getEmployee = async (id, user) => {
     const row = (await db.query('SELECT * FROM employees WHERE id = $1', [id])).rows[0]
-    if (!row) throw notFound('ไม่พบข้อมูลพนักงาน')
+    if (!row || !inScope(row, user)) throw notFound('ไม่พบข้อมูลพนักงาน')
     return row
   }
   const addHistory = (q, employeeId, type, description, date, userId) =>
@@ -64,8 +66,8 @@ export function employeesRouter({ db }) {
     const status = typeof req.query.status === 'string' ? req.query.status : ''
     if (status && !['active', 'resigned'].includes(status)) throw badRequest('สถานะไม่ถูกต้อง')
 
-    const where = []
-    const params = []
+    const params = [SUPPORTED_DEPARTMENT]
+    const where = ['department = $1']
     const param = (v) => `$${params.push(v)}`
     if (q) {
       const like = param(`%${escapeLike(q)}%`)
@@ -85,15 +87,15 @@ export function employeesRouter({ db }) {
     res.json({ total, employees: rows.map(toPublic) })
   })
 
-  router.get('/departments', requirePermission('employee:search'), async (_req, res) => {
-    const { rows } = await db.query('SELECT DISTINCT department FROM employees ORDER BY department COLLATE "C"')
-    res.json({ departments: rows.map((r) => r.department) })
+  router.get('/departments', requirePermission('employee:search'), (_req, res) => {
+    res.json({ departments: [SUPPORTED_DEPARTMENT] })
   })
 
   // UC-06: list resigned employees
   router.get('/resigned', requirePermission('resignation:manage'), async (_req, res) => {
     const { rows } = await db.query(
-      "SELECT * FROM employees WHERE status = 'resigned' ORDER BY resignation_date DESC, id DESC",
+      "SELECT * FROM employees WHERE status = 'resigned' AND department = $1 ORDER BY resignation_date DESC, id DESC",
+      [SUPPORTED_DEPARTMENT],
     )
     res.json({
       employees: rows.map((r) => ({
@@ -106,7 +108,12 @@ export function employeesRouter({ db }) {
 
   // UC-03: details + history
   router.get('/:id', requirePermission('employee:view'), async (req, res) => {
-    const row = await getEmployee(parseId(req.params.id))
+    const id = parseId(req.params.id)
+    // Self-only roles: decided before any lookup, so another employee's id can never be probed (403 whether or not it exists)
+    if (can(req.user.role, 'employee:selfOnly') && req.user.employeeId !== id) {
+      throw forbidden('คุณดูได้เฉพาะข้อมูลของตนเองเท่านั้น')
+    }
+    const row = await getEmployee(id, req.user)
     const isSelf = req.user.employeeId === row.id
     const confidentialVisible = isSelf || can(req.user.role, 'employee:viewConfidential')
     const { rows: history } = await db.query(
@@ -127,7 +134,7 @@ export function employeesRouter({ db }) {
 
   // UC-04: create
   router.post('/', requirePermission('employee:manage'), async (req, res) => {
-    const data = parseEmployee(req.body)
+    const data = parseEmployee({ ...req.body, department: SUPPORTED_DEPARTMENT })
     if (await codeTaken(data.employeeCode)) throw conflict('รหัสพนักงานนี้มีอยู่ในระบบแล้ว')
     const id = await db.transaction(async (tx) => {
       const { rows } = await tx.query(
@@ -142,13 +149,13 @@ export function employeesRouter({ db }) {
       await addHistory(tx, newId, 'hired', `เริ่มงานในตำแหน่ง ${data.position} แผนก ${data.department}`, data.startDate, req.user.id)
       return newId
     })
-    res.status(201).json({ employee: toPublic(await getEmployee(id)) })
+    res.status(201).json({ employee: toPublic(await getEmployee(id, req.user)) })
   })
 
   // UC-04: update (status changes are only possible through the resign endpoint)
   router.put('/:id', requirePermission('employee:manage'), async (req, res) => {
-    const old = await getEmployee(parseId(req.params.id))
-    const data = parseEmployee(req.body)
+    const old = await getEmployee(parseId(req.params.id), req.user)
+    const data = parseEmployee({ ...req.body, department: SUPPORTED_DEPARTMENT })
     if (await codeTaken(data.employeeCode, old.id)) throw conflict('รหัสพนักงานนี้มีอยู่ในระบบแล้ว')
     await db.transaction(async (tx) => {
       await tx.query(
@@ -177,12 +184,12 @@ export function employeesRouter({ db }) {
         })
       if (!logged && changedOther) await addHistory(tx, old.id, 'updated', 'แก้ไขข้อมูลพนักงาน', date, req.user.id)
     })
-    res.json({ employee: toPublic(await getEmployee(old.id)) })
+    res.json({ employee: toPublic(await getEmployee(old.id, req.user)) })
   })
 
   // UC-06: mark as resigned (record is preserved, never deleted)
   router.post('/:id/resign', requirePermission('resignation:manage'), async (req, res) => {
-    const emp = await getEmployee(parseId(req.params.id))
+    const emp = await getEmployee(parseId(req.params.id), req.user)
     const { resignationDate, reason } = parseResignation(req.body)
     if (emp.status === 'resigned') throw conflict('พนักงานคนนี้ลาออกแล้ว')
     if (resignationDate < emp.start_date) {
@@ -199,7 +206,7 @@ export function employeesRouter({ db }) {
       )
       await addHistory(tx, emp.id, 'resigned', 'ลาออกจากองค์กร', resignationDate, req.user.id)
     })
-    res.json({ employee: toPublic(await getEmployee(emp.id)) })
+    res.json({ employee: toPublic(await getEmployee(emp.id, req.user)) })
   })
 
   return router

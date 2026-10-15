@@ -1,11 +1,12 @@
 import { test, before, after } from 'node:test'
 import assert from 'node:assert/strict'
-import { openDb } from '../src/db.js'
+import { createTestDb } from '../src/db.js'
 import { migrate } from '../src/migrate.js'
 import { seed, TEST_PASSWORD } from '../src/seed.js'
 import { createApp } from '../src/app.js'
 
 let server
+let db
 let base
 const tokens = {}
 const USERS = ['employee1', 'manager1', 'hr1', 'finance1', 'executive1']
@@ -23,9 +24,9 @@ async function call(method, path, { token, body } = {}) {
 }
 
 before(async () => {
-  const db = openDb(':memory:')
-  migrate(db)
-  seed(db)
+  db = await createTestDb()
+  await migrate(db)
+  await seed(db)
   const config = { jwtSecret: 'test-secret', jwtExpiresIn: '1h', port: 0 }
   server = createApp({ db, config }).listen(0)
   await new Promise((r) => server.once('listening', r))
@@ -35,7 +36,10 @@ before(async () => {
     tokens[u] = r.body.token
   }
 })
-after(() => server.close())
+after(async () => {
+  server.close()
+  await db.close()
+})
 
 const newEmployee = (over = {}) => ({
   employeeCode: 'E900', firstName: 'ทดสอบ', lastName: 'ระบบ', department: 'ตรวจสอบบัญชี',
@@ -70,15 +74,15 @@ test('UC-01 login: repeated failures are rate limited', async () => {
   assert.equal(last.status, 429)
 })
 
-test('UC-02 search by code, name and department; all roles allowed', async () => {
+test('UC-02 search by code, name and department; every role except employee', async () => {
   for (const u of USERS) {
-    assert.equal((await call('GET', '/api/employees?q=E105', { token: tokens[u] })).status, 200)
+    assert.equal((await call('GET', '/api/employees?q=E105', { token: tokens[u] })).status, u === 'employee1' ? 403 : 200)
   }
   const t = tokens.hr1
   assert.equal((await call('GET', '/api/employees?q=E105', { token: t })).body.employees[0].firstName, 'สมชาย')
   assert.equal((await call('GET', '/api/employees?q=' + encodeURIComponent('ใจดี'), { token: t })).body.total, 1)
   const dept = await call('GET', '/api/employees?department=' + encodeURIComponent('ฝ่ายการเงิน'), { token: t })
-  assert.ok(dept.body.total >= 2)
+  assert.equal(dept.body.total, 0) // other departments are outside the supported scope
   const none = await call('GET', '/api/employees?q=zzzz', { token: t })
   assert.equal(none.body.total, 0)
   assert.equal((await call('GET', '/api/employees?q=%25', { token: t })).body.total, 0) // % is literal
@@ -92,7 +96,7 @@ test('UC-02 search results never contain confidential fields', async () => {
   }
 })
 
-test('UC-03 details: confidential data visible to self and manager only', async () => {
+test('UC-03 details: confidential data visible to self, manager, HR and executive; employees see only themselves', async () => {
   const list = await call('GET', '/api/employees?q=E104', { token: tokens.hr1 })
   const id = list.body.employees[0].id // employee1 is E104
   const other = (await call('GET', '/api/employees?q=E105', { token: tokens.hr1 })).body.employees[0].id
@@ -105,15 +109,18 @@ test('UC-03 details: confidential data visible to self and manager only', async 
   assert.equal(self.body.confidentialVisible, true)
   const mgr = await call('GET', `/api/employees/${id}`, { token: tokens.manager1 })
   assert.equal(mgr.body.employee.nationalId, '1234567890123')
-  for (const u of ['hr1', 'finance1', 'executive1']) {
+  for (const u of ['hr1', 'executive1']) {
     const r = await call('GET', `/api/employees/${id}`, { token: tokens[u] })
     assert.equal(r.status, 200)
-    assert.equal(r.body.confidentialVisible, false)
-    assert.equal('nationalId' in r.body.employee, false)
-    assert.equal('phone' in r.body.employee, false)
+    assert.equal(r.body.confidentialVisible, true)
+    assert.equal(r.body.employee.nationalId, '1234567890123')
   }
-  const others = await call('GET', `/api/employees/${other}`, { token: tokens.employee1 })
-  assert.equal(others.body.confidentialVisible, false)
+  const fin = await call('GET', `/api/employees/${id}`, { token: tokens.finance1 })
+  assert.equal(fin.status, 200)
+  assert.equal(fin.body.confidentialVisible, false)
+  assert.equal('nationalId' in fin.body.employee, false)
+  assert.equal('phone' in fin.body.employee, false)
+  assert.equal((await call('GET', `/api/employees/${other}`, { token: tokens.employee1 })).status, 403)
   assert.ok(self.body.history.length >= 1)
   assert.equal((await call('GET', '/api/employees/99999', { token: tokens.hr1 })).status, 404)
   assert.equal((await call('GET', '/api/employees/abc', { token: tokens.hr1 })).status, 404)
@@ -138,7 +145,7 @@ test('UC-04 manage: validation errors and update persists with history', async (
     body: { employeeCode: 'x', firstName: '', startDate: '2999-01-01', email: 'no', nationalId: '12' },
   })
   assert.equal(bad.status, 400)
-  for (const k of ['employeeCode', 'firstName', 'lastName', 'department', 'position', 'startDate', 'email', 'nationalId']) {
+  for (const k of ['employeeCode', 'firstName', 'lastName', 'position', 'startDate', 'email', 'nationalId']) {
     assert.ok(bad.body.errors[k], k)
   }
   const id = (await call('GET', '/api/employees?q=E900', { token: tokens.manager1 })).body.employees[0].id
@@ -156,11 +163,12 @@ test('UC-04 manage: validation errors and update persists with history', async (
   assert.equal(sneaky.body.employee.status, 'active')
 })
 
-test('UC-05 salary: access restricted to finance (and self read)', async () => {
+test('UC-05 salary: finance manages, HR reads, employee reads own only', async () => {
   const list = (await call('GET', '/api/employees?q=E105', { token: tokens.hr1 })).body.employees[0]
   for (const u of ['hr1', 'manager1', 'executive1', 'employee1']) {
     assert.equal((await call('GET', '/api/salaries', { token: tokens[u] })).status, 403)
-    assert.equal((await call('GET', `/api/employees/${list.id}/salaries`, { token: tokens[u] })).status, 403)
+    // HR may read any employee's salary records (read-only); the others only their own
+    assert.equal((await call('GET', `/api/employees/${list.id}/salaries`, { token: tokens[u] })).status, u === 'hr1' ? 200 : 403)
     assert.equal((await call('POST', `/api/employees/${list.id}/salaries`, { token: tokens[u], body: { amount: 1, effectiveDate: '2026-01-01' } })).status, 403)
     assert.equal((await call('PUT', '/api/salaries/1', { token: tokens[u], body: { amount: 1, effectiveDate: '2026-01-01' } })).status, 403)
   }
@@ -210,7 +218,8 @@ test('UC-06 resign: manager only, keeps record and history, requires valid data'
   assert.equal(detail.status, 200) // record preserved
   assert.ok(detail.body.history.some((h) => h.eventType === 'resigned'))
   assert.ok(detail.body.history.some((h) => h.eventType === 'hired'))
-  assert.equal('resignationReason' in detail.body.employee, false) // reason is confidential
+  const finDetail = await call('GET', `/api/employees/${emp.id}`, { token: tokens.finance1 })
+  assert.equal('resignationReason' in finDetail.body.employee, false) // reason is confidential
   const resigned = await call('GET', '/api/employees/resigned', { token: tokens.manager1 })
   assert.ok(resigned.body.employees.some((e) => e.id === emp.id && e.resignationDate === '2026-10-01'))
   // resignation reflected in dashboard and salary rules
@@ -219,11 +228,17 @@ test('UC-06 resign: manager only, keeps record and history, requires valid data'
   assert.equal((await call('POST', `/api/employees/${emp.id}/salaries`, { token: tokens.finance1, body: { amount: 1000, effectiveDate: '2026-10-02' } })).status, 400)
 })
 
-test('dashboard summary returns real counts for any logged-in role', async () => {
-  const r = await call('GET', '/api/dashboard/summary', { token: tokens.employee1 })
+test('dashboard summary: real counts for staff roles, none for employees', async () => {
+  const r = await call('GET', '/api/dashboard/summary', { token: tokens.hr1 })
   assert.equal(r.status, 200)
-  assert.ok(r.body.counts.total >= 12)
+  assert.ok(r.body.counts.total >= 6)
   assert.ok(r.body.recentEmployees.length <= 5)
+  // employees get no organisation-wide statistics or other employees' records
+  const mine = await call('GET', '/api/dashboard/summary', { token: tokens.employee1 })
+  assert.equal(mine.status, 200)
+  assert.equal(mine.body.counts, null)
+  assert.deepEqual(mine.body.recentEmployees, [])
+  assert.ok(mine.body.announcements.length > 0)
   assert.equal((await call('GET', '/api/dashboard/summary')).status, 401)
 })
 

@@ -4,6 +4,7 @@ import { requirePermission } from '../middleware/auth.js'
 import { badRequest, forbidden, notFound } from '../errors.js'
 import { parseSalary, today } from '../validate.js'
 import { parseId } from './employees.js'
+import { SUPPORTED_DEPARTMENT, inScope } from '../scope.js'
 
 const toSalary = (r) => ({
   id: r.id,
@@ -17,9 +18,9 @@ const toSalary = (r) => ({
 export function salariesRouter({ db }) {
   const router = Router()
 
-  const getEmployee = async (id) => {
-    const row = (await db.query('SELECT id, status FROM employees WHERE id = $1', [id])).rows[0]
-    if (!row) throw notFound('ไม่พบข้อมูลพนักงาน')
+  const getEmployee = async (id, user) => {
+    const row = (await db.query('SELECT id, status, department FROM employees WHERE id = $1', [id])).rows[0]
+    if (!row || !inScope(row, user)) throw notFound('ไม่พบข้อมูลพนักงาน')
     return row
   }
 
@@ -31,8 +32,8 @@ export function salariesRouter({ db }) {
             ORDER BY s.effective_date DESC, s.id DESC LIMIT 1) AS current_amount,
          (SELECT s.effective_date FROM salaries s WHERE s.employee_id = e.id AND s.effective_date <= $1
             ORDER BY s.effective_date DESC, s.id DESC LIMIT 1) AS current_since
-       FROM employees e ORDER BY e.employee_code COLLATE "C"`,
-      [today()],
+       FROM employees e WHERE e.department = $2 ORDER BY e.employee_code COLLATE "C"`,
+      [today(), SUPPORTED_DEPARTMENT],
     )
     res.json({
       employees: rows.map((r) => ({
@@ -49,17 +50,18 @@ export function salariesRouter({ db }) {
     })
   })
 
-  // Salary records of one employee: finance, or the employee themself
+  // Salary records of one employee: finance (manage), HR (read-only), or the employee themself
   router.get('/employees/:id/salaries', async (req, res) => {
-    const emp = await getEmployee(parseId(req.params.id))
-    const allowed = can(req.user.role, 'salary:manage') || req.user.employeeId === emp.id
+    const emp = await getEmployee(parseId(req.params.id), req.user)
+    const allowed =
+      can(req.user.role, 'salary:manage') || can(req.user.role, 'salary:view') || req.user.employeeId === emp.id
     if (!allowed) throw forbidden('คุณไม่มีสิทธิ์ดูข้อมูลเงินเดือน')
     const { rows } = await db.query('SELECT * FROM salaries WHERE employee_id = $1 ORDER BY effective_date DESC, id DESC', [emp.id])
     res.json({ salaries: rows.map(toSalary), canManage: can(req.user.role, 'salary:manage') })
   })
 
   router.post('/employees/:id/salaries', requirePermission('salary:manage'), async (req, res) => {
-    const emp = await getEmployee(parseId(req.params.id))
+    const emp = await getEmployee(parseId(req.params.id), req.user)
     if (emp.status === 'resigned') throw badRequest('ไม่สามารถเพิ่มเงินเดือนให้พนักงานที่ลาออกแล้ว')
     const d = parseSalary(req.body)
     const { rows } = await db.query(
