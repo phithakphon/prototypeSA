@@ -116,12 +116,15 @@
 
 .sidebar-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 52px; }
 .sidebar-brand { display: flex; align-items: center; gap: 12px; color: var(--primary-dark); font-size: 18px; font-weight: 600; white-space: nowrap; }
-.brand-badge {
-  display: grid; place-items: center; flex: none;
-  width: 48px; height: 48px; border-radius: 14px;
-  background: linear-gradient(145deg, #0a6aa8, var(--primary-dark)); color: #fff; font-size: 16px; font-weight: 700;
-  box-shadow: 0 6px 14px rgb(7 91 145 / 28%);
+.brand-mark {
+  display: block; flex: none; width: 48px; height: 48px; user-select: none;
+  filter: drop-shadow(0 5px 9px rgb(7 91 145 / 26%));
+  transition: transform 220ms cubic-bezier(0.34, 1.56, 0.64, 1), filter var(--ease);
 }
+.sidebar-brand:hover .brand-mark, .topbar-brand:hover .brand-mark { transform: rotate(-5deg) scale(1.07); filter: drop-shadow(0 7px 12px rgb(7 91 145 / 34%)); }
+.sidebar-title { display: grid; gap: 1px; line-height: 1.25; min-width: 0; }
+.sidebar-title strong { font-size: 18px; font-weight: 600; color: var(--primary-dark); }
+.sidebar-title small { font-size: 10px; font-weight: 500; letter-spacing: 1.4px; color: var(--primary); opacity: 0.85; }
 .sidebar-text { white-space: nowrap; transition: opacity var(--ease); }
 .sidebar.is-collapsed .sidebar-text { opacity: 0; pointer-events: none; width: 0; overflow: hidden; }
 .sidebar.is-collapsed .sidebar-head { flex-direction: column; }
@@ -194,6 +197,9 @@
   border-bottom: 1px solid var(--border);
   box-shadow: 0 4px 16px rgb(7 91 145 / 7%);
 }
+.topbar-brand { display: none; align-items: center; gap: 10px; min-width: 0; color: var(--primary-dark); }
+.topbar-brand .brand-mark { width: 40px; height: 40px; filter: drop-shadow(0 3px 6px rgb(7 91 145 / 24%)); }
+.topbar-brand strong { font-size: 17px; font-weight: 600; line-height: 1.25; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .topbar-title { display: grid; margin: 0; line-height: 1.4; }
 .topbar-title strong { font-size: 20px; font-weight: 600; color: var(--primary); }
 .topbar-title span { font-size: 15px; color: var(--muted); }
@@ -282,9 +288,14 @@ button.nav-link { width: 100%; }
   .scrim.show { opacity: 1; pointer-events: auto; }
   .topbar { padding: 10px 16px; min-height: 76px; }
   .topbar-title { display: none; }
+  .topbar-brand { display: flex; }
   .hamburger + .topbar-title + .profile-menu { margin-left: auto; }
   .demo-notice { margin: 16px 16px 0; }
   .page { padding: 20px 16px 40px; }
+}
+
+@media (max-width: 480px) {
+  .topbar-brand strong { display: none; }
 }
 
 @media (max-width: 560px) {

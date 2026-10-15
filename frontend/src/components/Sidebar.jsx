@@ -3,6 +3,7 @@ import {
   ClipboardCheck, History, House, LogOut, PanelLeftClose, PanelLeftOpen, Search, SlidersHorizontal, UserMinus, UserCheck, Wallet, X,
 } from 'lucide-react'
 import { useAuth } from '../auth/auth'
+import BrandLogo from './BrandLogo'
 
 const ICON = { size: 24, strokeWidth: 1.75, 'aria-hidden': true }
 
@@ -30,8 +31,11 @@ function Sidebar({ collapsed, onToggleCollapse, mobileOpen, onCloseMobile }) {
     <aside id="app-sidebar" className={cls} aria-label="เมนูหลัก">
       <div className="sidebar-head">
         <div className="sidebar-brand">
-          <span className="brand-badge">HR</span>
-          <span className="sidebar-text">ระบบบริหารพนักงาน</span>
+          <BrandLogo size={48} />
+          <span className="sidebar-text sidebar-title">
+            <strong>ระบบบริหารพนักงาน</strong>
+            <small>EMPLOYEE MANAGEMENT</small>
+          </span>
         </div>
         <button
           type="button"

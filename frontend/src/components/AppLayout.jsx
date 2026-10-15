@@ -4,6 +4,7 @@ import { Info } from 'lucide-react'
 import Notice from './Notice'
 import Sidebar from './Sidebar'
 import ProfileMenu from './ProfileMenu'
+import BrandLogo from './BrandLogo'
 import { useAuth } from '../auth/auth'
 import { USE_MOCK } from '../api'
 import usePointerEffects from '../hooks/usePointerEffects'
@@ -60,6 +61,10 @@ function AppLayout() {
           >
             <span /><span /><span />
           </button>
+          <span className="topbar-brand">
+            <BrandLogo size={40} />
+            <strong>ระบบบริหารพนักงาน</strong>
+          </span>
           <p className="topbar-title">
             <strong>บริษัท ศุภชัยสอบบัญชี</strong>
             <span>ระบบบริหารจัดการข้อมูลพนักงาน</span>
