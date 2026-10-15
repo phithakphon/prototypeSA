@@ -209,5 +209,21 @@ export function employeesRouter({ db }) {
     res.json({ employee: toPublic(await getEmployee(emp.id, req.user)) })
   })
 
+  // UC-06: return a resigned employee to active status (history is kept: the original 'resigned' entry stays)
+  router.post('/:id/reinstate', requirePermission('resignation:manage'), async (req, res) => {
+    const emp = await getEmployee(parseId(req.params.id), req.user)
+    await db.transaction(async (tx) => {
+      // The status check is part of the UPDATE, so two concurrent requests cannot both succeed or double-log.
+      const { rowCount } = await tx.query(
+        `UPDATE employees SET status = 'active', resignation_date = NULL, resignation_reason = NULL,
+           updated_at = now() WHERE id = $1 AND status = 'resigned'`,
+        [emp.id],
+      )
+      if (rowCount === 0) throw conflict('พนักงานคนนี้ยังปฏิบัติงานอยู่')
+      await addHistory(tx, emp.id, 'reinstated', 'กลับเข้าปฏิบัติงาน', today(), req.user.id)
+    })
+    res.json({ employee: toPublic(await getEmployee(emp.id, req.user)) })
+  })
+
   return router
 }
