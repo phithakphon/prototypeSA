@@ -28,13 +28,18 @@ Migration: `001_init.sql` (schema), `002_reinstated_and_username_ci.sql` (event 
 | `JWT_SECRET` | ใช่ | คีย์เซ็น JWT (สร้างตามคำสั่งใน `.env.example`) |
 | `DATABASE_URL` | ใช่ | connection string ของ Supabase (รหัสผ่านที่มีอักขระพิเศษต้อง URL-encode) |
 | `DB_SSL` | ไม่ | `disable` / `require` / `verify` (ค่าเริ่มต้น: localhost = disable, อื่น ๆ = require) |
-| `DB_SSL_CA` | ไม่ | path ของ CA cert ใช้เมื่อ `DB_SSL=verify` |
+| `DB_SSL_CA` / `DB_SSL_CA_PEM` | ไม่ | Supabase Root CA ใช้เมื่อ `DB_SSL=verify`: path ของไฟล์ หรือข้อความ PEM (สำหรับแพลตฟอร์มที่ไม่มีไฟล์) |
 | `DB_POOL_MAX` | ไม่ | จำนวน connection สูงสุด (10) |
 | `AUTO_MIGRATE` | ไม่ | `true` = รัน migration ตอนสตาร์ท (ค่าเริ่มต้น false) |
 | `PORT`, `JWT_EXPIRES_IN` | ไม่ | 3001, 8h |
+| `NODE_ENV` | production: ใช่ | `production` เปิดการตรวจความปลอดภัย: `JWT_SECRET` ≥ 32 ตัว, `DB_SSL=verify`, `CORS_ORIGINS` ต้องเป็น https |
+| `CORS_ORIGINS` | ถ้า frontend คนละโดเมน | origin ที่อนุญาต คั่นด้วย `,` (เช่น `https://app.vercel.app`) ไม่มี `*`/path/`/` ท้าย; ว่าง = same-origin เท่านั้น |
+| `TRUST_PROXY` | หลัง proxy | จำนวน reverse proxy หน้าแอป (Render/Railway = `1`) เพื่อให้ rate limit เห็น IP จริง |
 | `SQLITE_PATH` | ไม่ | ใช้กับ `migrate:data` เท่านั้น (ค่าเริ่มต้น `./data/app.db`) |
 
 ห้าม commit `.env` (อยู่ใน `.gitignore` แล้ว รวมถึง `data/` และ `*.db`) — `.env.example` มีแต่ค่า placeholder
+
+> การ deploy ขึ้น production (Render + Vercel + Supabase): ดู [`docs/DEPLOYMENT.md`](../docs/DEPLOYMENT.md)
 
 ## ตั้งค่า Supabase
 
