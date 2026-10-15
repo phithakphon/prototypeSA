@@ -71,3 +71,10 @@ it('displays Thai E100 history after remount and opens the correct E103 record',
   expect(dialog.getByText(/รหัสพนักงาน: E103/)).toHaveTextContent('วิชัย มั่นคง')
   expect(dialog.queryByText(/รัตนายุ/)).not.toBeInTheDocument()
 })
+
+it.each([3, 4, 5])('direct /evaluations access is blocked for roles without evaluation:view (mock token %i)', async (id) => {
+  localStorage.setItem('ems_token', `mock-token-${id}`)
+  render(<MemoryRouter initialEntries={['/evaluations']}><AppRoutes /></MemoryRouter>)
+  expect(await screen.findByRole('heading', { name: 'ไม่มีสิทธิ์เข้าถึง' })).toBeInTheDocument()
+  expect(screen.queryByRole('heading', { name: 'ผลการประเมินพนักงาน' })).not.toBeInTheDocument()
+})

@@ -16,7 +16,7 @@ const NAV_ITEMS = [
   { to: '/resigned', label: 'พนักงานที่ลาออก', icon: UserMinus, permission: 'resignation:manage' },
   { to: '/salaries', label: 'จัดการเงินเดือน', icon: Wallet, permission: 'salary:manage' },
   { to: '/accounts', label: 'ผูกบัญชีผู้ใช้', icon: UserCheck, permission: 'account:link' },
-  { to: '/evaluations', label: 'ผลการประเมิน', icon: ClipboardCheck },
+  { to: '/evaluations', label: 'ผลการประเมิน', icon: ClipboardCheck, permission: 'evaluation:view' },
 ]
 
 function Sidebar({ collapsed, onToggleCollapse, mobileOpen, onCloseMobile }) {

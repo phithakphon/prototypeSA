@@ -1,11 +1,14 @@
 import { Navigate, Outlet, useLocation } from 'react-router-dom'
 import { useAuth } from './auth'
+import { ErrorState } from '../components/States'
 
 // Redirects to /login when not signed in.
 export function RequireAuth() {
-  const { user, loading } = useAuth()
+  const { user, loading, sessionError, retrySession } = useAuth()
   const location = useLocation()
   if (loading) return <div className="center-state" role="status">กำลังโหลด...</div>
+  // Token kept, but the server could not be reached: show the error with a retry instead of signing out.
+  if (!user && sessionError) return <ErrorState error={sessionError} onRetry={retrySession} />
   if (!user) return <Navigate to="/login" replace state={{ from: location.pathname }} />
   return <Outlet />
 }

@@ -182,7 +182,45 @@ cp .env.example .env          # แล้วแก้ไขค่าใน .env 
 
 > ใช้ Supabase โปรเจกต์ **ทดสอบ** ตอนพัฒนา และอย่าใส่ค่าจริงในไฟล์ที่ถูก commit
 
-### เตรียมฐานข้อมูล
+### 👥 เริ่มต้นสำหรับเพื่อนร่วมทีม (ใช้ Supabase ที่ใช้ร่วมกัน)
+
+ฐานข้อมูล Supabase ของทีมถูก migrate (001–003 และ **005 ผลการประเมิน**) และมีบัญชีทดสอบ 5 บัญชีอยู่แล้ว —
+**ไม่ต้องและห้ามรัน `npm run migrate`, `npm run seed`, `npm run seed:evaluations` หรือ `npm run rotate:passwords` กับฐานข้อมูลที่ใช้ร่วมกัน**
+
+1. Clone และติดตั้ง dependency (ตามหัวข้อ "การติดตั้ง" ด้านบน, Node.js ≥ 22.13)
+2. **ขอ 2 ค่าจากเจ้าของโปรเจกต์ผ่านช่องทางที่ปลอดภัย** (ห้ามส่งทางแชตสาธารณะหรือ commit): `DATABASE_URL` ของ Supabase และ **รหัสผ่านบัญชีทดสอบ** (ค่า `SEED_PASSWORD` ที่ใช้ตอน seed)
+3. สร้างไฟล์ตั้งค่าในเครื่อง (ทั้งสองไฟล์อยู่ใน `.gitignore`):
+   ```bash
+   cp backend/.env.example backend/.env
+   #  แก้ backend/.env: ใส่ DATABASE_URL (ที่ได้รับ) และสร้าง JWT_SECRET ของตัวเอง (อย่าใช้ร่วมกับคนอื่น)
+   #  ปล่อย DB_SSL=require, AUTO_MIGRATE=false, PORT=3001 ตามตัวอย่าง
+
+   echo "VITE_USE_MOCK=false" > frontend/.env.local
+   ```
+   `JWT_SECRET` เป็นของแต่ละเครื่อง (ไม่เกี่ยวกับฐานข้อมูล) รหัสผ่านบัญชีทดสอบ **ไม่ต้องใส่ในไฟล์ใด ๆ** — พิมพ์ที่หน้า Login เท่านั้น
+4. เริ่ม backend แล้ว frontend (คนละเทอร์มินัล):
+   ```bash
+   cd backend  && npm run dev     # http://localhost:3001  — ต้องขึ้น "Backend พร้อมใช้งาน"
+   cd frontend && npm run dev     # http://localhost:5173
+   ```
+5. เปิด http://localhost:5173 แล้ว Login ด้วยชื่อผู้ใช้ `manager1`, `hr1`, `finance1`, `executive1` หรือ `employee1`
+   (ตัวพิมพ์เล็ก/ใหญ่ได้) และรหัสผ่านที่ได้รับ — **ไม่ใช่ `Passw0rd!`** รหัสนั้นใช้เฉพาะโหมดข้อมูลจำลอง
+
+แก้ปัญหาที่พบบ่อย:
+
+| อาการ | สาเหตุและวิธีแก้ |
+|---|---|
+| หน้า Login มีกล่อง "โหมดสาธิต" / ใช้ `Passw0rd!` ได้ | frontend ยังอยู่ในโหมด mock — ตรวจว่ามี `frontend/.env.local` เนื้อหา `VITE_USE_MOCK=false` แล้ว **รีสตาร์ต `npm run dev`** (Vite อ่านไฟล์ตอนเริ่มเท่านั้น) |
+| "ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง" | รหัสผ่านไม่ใช่ค่าที่ใช้ตอน seed (ขอจากเจ้าของโปรเจกต์) หรือล็อกเนื่องจากกรอกผิดหลายครั้ง (รอ 15 นาที / รีสตาร์ต backend) |
+| "ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้" พร้อมปุ่มลองอีกครั้ง | backend ยังไม่ทำงานหรือพอร์ตไม่ใช่ 3001 — ดูเทอร์มินัล backend แล้วกด "ลองอีกครั้ง" (session ไม่ถูกลบ) |
+| backend ปิดตัวทันทีด้วย "ตั้งค่าไม่ถูกต้อง" | `JWT_SECRET` หรือ `DATABASE_URL` ว่าง/รูปแบบผิด (URL-encode อักขระพิเศษในรหัสผ่าน เช่น `@` → `%40`) |
+| "ยังมี migration ที่ยังไม่ได้รัน" | ฐานข้อมูลที่ชี้ไม่ใช่ฐานข้อมูลของทีม (ฐานของทีมรัน 005 แล้ว) ตรวจ `DATABASE_URL` — **อย่า** รัน migrate กับฐานข้อมูลที่ใช้ร่วมกันโดยไม่ได้รับอนุมัติ |
+| เชื่อมต่อฐานข้อมูลไม่ได้ / SSL error | ใช้ Session pooler (พอร์ต 5432) ของ Supabase และ `DB_SSL=require`; ตรวจเครือข่าย/ไฟร์วอลล์ |
+| `npm test` ใน frontend ผิดพลาดเมื่อมี `.env.local` | แก้แล้ว — unit test บังคับใช้ mock เสมอ ถ้ายังพบให้ pull ล่าสุด |
+
+ตรวจสถานะ backend: http://localhost:3001/health และ /ready ต้องตอบ `{"status":"ok"}`
+
+### เตรียมฐานข้อมูล (เฉพาะฐานข้อมูลใหม่/ทดสอบของตนเอง — ไม่ใช่ฐานข้อมูลที่ทีมใช้ร่วมกัน)
 
 ```bash
 cd backend
@@ -244,9 +282,9 @@ npm run dev            # Vite proxy ส่ง /api ไปที่ http://localh
 ## 🧪 การทดสอบ
 
 ```bash
-cd backend  && npm test            # API, RBAC, ขอบเขตแผนก, สมัคร/ผูกบัญชี, migration, config ฯลฯ (63 เทสต์)
-cd frontend && npm test            # หน้าจอ + mock API (122 เทสต์)
-cd frontend && npm run test:integration  # หน้าจอ + backend จริงบน PostgreSQL ในหน่วยความจำ (6 เทสต์ ข้าม 1)
+cd backend  && npm test            # API, RBAC, ขอบเขตแผนก, สมัคร/ผูกบัญชี, migration, config ฯลฯ (66 เทสต์)
+cd frontend && npm test            # หน้าจอ + mock API (125 เทสต์)
+cd frontend && npm run test:integration  # หน้าจอ + backend จริงบน PostgreSQL ในหน่วยความจำ (8 เทสต์)
 cd frontend && npm run lint        # oxlint
 cd frontend && npm run build       # production build
 ```
@@ -302,9 +340,9 @@ prototypeSA/
 | Frontend / Backend / health check / CORS / SPA routing | ✅ เตรียมแล้ว ทดสอบในเครื่องแล้ว |
 | ตรวจใบรับรองฐานข้อมูล (Supabase Root CA) | ⚠️ ต้องตั้งค่าเอง |
 | บัญชีผู้ดูแลคนแรก | ⚠️ ต้องรัน `npm run bootstrap:user` |
-| ระบบผลการประเมินบน PostgreSQL (migration 005) | ⚠️ รวมในสาขาแล้ว ทดสอบบน PGlite — **ต้องรัน `npm run migrate` บน Supabase หลังได้รับอนุมัติ** ([`docs/INTEGRATION-PLAN.md`](docs/INTEGRATION-PLAN.md)) |
+| ระบบผลการประเมินบน PostgreSQL (migration 005) | ✅ รันบน Supabase ที่ใช้ร่วมกันแล้ว (ตรวจ: ตาราง + RLS เปิด, จำนวนแถวเดิมไม่เปลี่ยน) — ดู [`docs/MIGRATION-005-PLAN.md`](docs/MIGRATION-005-PLAN.md) |
 
-**สถานะรวม: ยังไม่พร้อม deploy** จนกว่าจะรัน migration 005 บน Supabase (หลังอนุมัติและสำรองข้อมูล) และตั้งค่า SSL
+**สถานะรวม: ยังไม่พร้อม deploy** จนกว่าจะตั้งค่า SSL แบบ verify และ deploy จริง (ยังไม่ได้ทำ)
 
 ## 📈 สถานะการพัฒนา
 
@@ -313,7 +351,7 @@ prototypeSA/
 | ฟีเจอร์ตาม Use Case (UC-01 ถึง UC-06) + สมัคร/ผูกบัญชี + กลับเข้าทำงาน | ✅ ทำแล้ว ทดสอบอัตโนมัติแล้ว |
 | ย้ายฐานข้อมูลจาก SQLite → Supabase PostgreSQL (migration 001–003; 005 สำหรับผลการประเมิน) | ✅ ทำแล้ว ใช้งานบน Supabase โปรเจกต์ทดสอบ |
 | ตัวช่วย deploy (CORS, health, SPA, env) | ✅ พร้อม รอผู้ดูแลตั้งค่าและ deploy |
-| ระบบผลการประเมินพนักงาน | ✅ ย้ายเป็น PostgreSQL แล้ว (migration 005) — ⏳ รอรันบน Supabase หลังอนุมัติ |
+| ระบบผลการประเมินพนักงาน | ✅ ย้ายเป็น PostgreSQL แล้ว และ migration 005 รันบน Supabase แล้ว (ตารางยังว่าง ยังไม่มีข้อมูลประเมินจริง) |
 | ทดสอบหน้าจอผ่านเบราว์เซอร์ด้วยมือ | ⏳ ยังไม่ได้ทำ |
 | จัดการประกาศ (เพิ่ม/แก้ไข) | ⏳ ยังไม่มี (อ่านอย่างเดียว) |
 | หน้า/คำสั่ง rotate รหัสผ่านบนฐานข้อมูลจริง | ⏳ รอผู้ดูแลอนุมัติ |

@@ -211,3 +211,24 @@ test('security edge cases: tokens, injection-shaped input, oversize ids', async 
   const me = await call('POST', '/api/auth/login', { body: { username: "admin' --", password: 'x' } })
   assert.equal(me.status, 401)
 })
+
+test('login: username is case-insensitive, password stays case-sensitive, wrong password still fails', async () => {
+  for (const username of ['manager1', 'MANAGER1', 'Manager1', ' mAnAgEr1 ']) {
+    const r = await call('POST', '/api/auth/login', { body: { username, password: TEST_PASSWORD } })
+    assert.equal(r.status, 200, username)
+    assert.equal(r.body.user.username, 'manager1')
+  }
+  assert.equal((await call('POST', '/api/auth/login', { body: { username: 'MANAGER1', password: TEST_PASSWORD.toLowerCase() } })).status, 401)
+  assert.equal((await call('POST', '/api/auth/login', { body: { username: 'nobody', password: TEST_PASSWORD } })).status, 401)
+})
+
+test('login: a registered username works in any letter case, and case variants cannot be registered twice', async () => {
+  const PW = 'Str0ngPassw0rd'
+  assert.equal((await call('POST', '/api/auth/register', { body: { username: 'Case.Test', password: PW, confirmPassword: PW } })).status, 201)
+  for (const username of ['case.test', 'CASE.TEST', 'Case.Test']) {
+    assert.equal((await call('POST', '/api/auth/login', { body: { username, password: PW } })).status, 200, username)
+  }
+  assert.equal((await call('POST', '/api/auth/register', { body: { username: 'CASE.TEST', password: PW, confirmPassword: PW } })).status, 409)
+  const n = (await db.query("SELECT COUNT(*)::int AS n FROM users WHERE lower(username) = 'case.test'")).rows[0].n
+  assert.equal(n, 1)
+})
