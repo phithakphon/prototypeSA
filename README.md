@@ -244,9 +244,9 @@ npm run dev            # Vite proxy ส่ง /api ไปที่ http://localh
 ## 🧪 การทดสอบ
 
 ```bash
-cd backend  && npm test            # API, RBAC, ขอบเขตแผนก, สมัคร/ผูกบัญชี, migration, config ฯลฯ (63 เทสต์)
-cd frontend && npm test            # หน้าจอ + mock API (122 เทสต์)
-cd frontend && npm run test:integration  # หน้าจอ + backend จริงบน PostgreSQL ในหน่วยความจำ (6 เทสต์ ข้าม 1)
+cd backend  && npm test            # API, RBAC, ขอบเขตแผนก, สมัคร/ผูกบัญชี, migration, config ฯลฯ (66 เทสต์)
+cd frontend && npm test            # หน้าจอ + mock API (125 เทสต์)
+cd frontend && npm run test:integration  # หน้าจอ + backend จริงบน PostgreSQL ในหน่วยความจำ (8 เทสต์)
 cd frontend && npm run lint        # oxlint
 cd frontend && npm run build       # production build
 ```
@@ -302,7 +302,7 @@ prototypeSA/
 | Frontend / Backend / health check / CORS / SPA routing | ✅ เตรียมแล้ว ทดสอบในเครื่องแล้ว |
 | ตรวจใบรับรองฐานข้อมูล (Supabase Root CA) | ⚠️ ต้องตั้งค่าเอง |
 | บัญชีผู้ดูแลคนแรก | ⚠️ ต้องรัน `npm run bootstrap:user` |
-| ระบบผลการประเมินบน PostgreSQL (migration 005) | ⚠️ รวมในสาขาแล้ว ทดสอบบน PGlite — **ต้องรัน `npm run migrate` บน Supabase หลังได้รับอนุมัติ** ([`docs/INTEGRATION-PLAN.md`](docs/INTEGRATION-PLAN.md)) |
+| ระบบผลการประเมินบน PostgreSQL (migration 005) | ⚠️ รวมในสาขาแล้ว ทดสอบบน PGlite — **ต้องรัน `npm run migrate` บน Supabase หลังได้รับอนุมัติ** ([`docs/MIGRATION-005-PLAN.md`](docs/MIGRATION-005-PLAN.md)) |
 
 **สถานะรวม: ยังไม่พร้อม deploy** จนกว่าจะรัน migration 005 บน Supabase (หลังอนุมัติและสำรองข้อมูล) และตั้งค่า SSL
 

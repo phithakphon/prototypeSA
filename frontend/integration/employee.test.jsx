@@ -55,9 +55,7 @@ it('reports backend connection failure without returning mock records', async ()
   } finally { fetchSpy.mockRestore() }
 })
 
-// SKIPPED: asserts behaviour that exists on neither branch (AuthProvider logs out on any /auth/me failure, identical on main).
-// Needs a product decision before enabling.
-it.skip('shows session restoration errors and retains the token during an outage', async () => {
+it('shows session restoration errors and retains the token during an outage', async () => {
   const originalToken = localStorage.getItem('ems_token')
   expect(originalToken).toBeTruthy()
   const fetchSpy = vi.spyOn(globalThis, 'fetch').mockRejectedValue(new TypeError('Network unavailable'))
@@ -65,7 +63,18 @@ it.skip('shows session restoration errors and retains the token during an outage
     mount('/dashboard')
     expect(await screen.findByText('ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้')).toBeInTheDocument()
     expect(localStorage.getItem('ems_token')).toBe(originalToken)
+    // retry succeeds once the backend is reachable again, without logging in again
+    fetchSpy.mockRestore()
+    await userEvent.setup().click(screen.getByRole('button', { name: 'ลองอีกครั้ง' }))
+    await screen.findByRole('heading', { name: 'หน้าหลัก' }, { timeout: 5000 })
   } finally { fetchSpy.mockRestore() }
+})
+
+it('a confirmed 401 signs the user out and clears the token', async () => {
+  localStorage.setItem('ems_token', 'not-a-valid-token')
+  mount('/dashboard')
+  await screen.findByLabelText('ชื่อผู้ใช้')
+  expect(localStorage.getItem('ems_token')).toBeNull()
 })
 
 

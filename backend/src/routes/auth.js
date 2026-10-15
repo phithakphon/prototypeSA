@@ -79,7 +79,7 @@ export function authRouter({ db, config }) {
     if (isLocked(key) || ipLocked(req.ip)) {
       return next(new HttpError(429, 'พยายามเข้าสู่ระบบผิดหลายครั้งเกินไป กรุณาลองใหม่ภายหลัง 15 นาที'))
     }
-    const user = (await db.query('SELECT * FROM users WHERE username = $1', [username.trim()])).rows[0]
+    const user = (await db.query('SELECT * FROM users WHERE lower(username) = lower($1)', [username.trim()])).rows[0]
     const ok = await bcrypt.compare(password, user ? user.password_hash : DUMMY_HASH)
     if (!user || !ok) {
       recordFail(key, req.ip)

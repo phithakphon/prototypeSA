@@ -128,3 +128,31 @@ test('fictional seed evaluations are additive, repeatable and guarded by identit
     assert.equal((await db.query('SELECT COUNT(*)::int AS n FROM performance_evaluations')).rows[0].n, DEMO_EVALUATIONS.length)
   } finally { await db.close() }
 })
+
+test('migration 005 on a database that already holds data adds one table and changes nothing else', async () => {
+  const { readdirSync, readFileSync } = await import('node:fs')
+  const db = await createTestDb()
+  try {
+    // Apply 001-003 exactly as the live database has them, then add data
+    const dir = new URL('../src/migrations/', import.meta.url)
+    for (const f of readdirSync(dir).filter((n) => n.endsWith('.sql') && n < '005').sort()) await db.exec(readFileSync(new URL(f, dir), 'utf8'))
+    await db.exec(`INSERT INTO employees (employee_code,first_name,last_name,department,position,start_date) VALUES ('K1','a','b','ตรวจสอบบัญชี','p','2026-01-01');
+      INSERT INTO users (username,password_hash,role,employee_id) VALUES ('keep','h','employee',1);
+      INSERT INTO salaries (employee_id,amount,effective_date) VALUES (1,100,'2026-01-01')`)
+    const snapshot = async () => ({
+      employees: (await db.query('SELECT * FROM employees ORDER BY id')).rows,
+      users: (await db.query('SELECT * FROM users ORDER BY id')).rows,
+      salaries: (await db.query('SELECT * FROM salaries ORDER BY id')).rows,
+      tables: (await db.query("SELECT relname FROM pg_class WHERE relkind='r' AND relnamespace='public'::regnamespace ORDER BY 1")).rows.map((r) => r.relname),
+    })
+    await db.exec('CREATE TABLE IF NOT EXISTS schema_migrations (name TEXT PRIMARY KEY, applied_at TIMESTAMPTZ NOT NULL DEFAULT now())')
+    await db.exec("INSERT INTO schema_migrations (name) VALUES ('001_init.sql'),('002_reinstated_and_username_ci.sql'),('003_account_links.sql')")
+    const before = await snapshot()
+    assert.deepEqual(await migrate(db), ['005_performance_evaluations.sql'])
+    const after = await snapshot()
+    assert.deepEqual(after.employees, before.employees)
+    assert.deepEqual(after.users, before.users)
+    assert.deepEqual(after.salaries, before.salaries)
+    assert.deepEqual(after.tables, [...before.tables, 'performance_evaluations'].sort())
+  } finally { await db.close() }
+})
