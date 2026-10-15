@@ -21,7 +21,8 @@ const types = {
 function sslOption(config) {
   if (config.dbSsl === 'disable') return false
   if (config.dbSsl === 'verify') {
-    return { rejectUnauthorized: true, ...(config.dbSslCa ? { ca: readFileSync(config.dbSslCa, 'utf8') } : {}) }
+    const ca = config.dbSslCaPem || (config.dbSslCa ? readFileSync(config.dbSslCa, 'utf8') : null)
+    return { rejectUnauthorized: true, ...(ca ? { ca } : {}) }
   }
   return { rejectUnauthorized: false }
 }

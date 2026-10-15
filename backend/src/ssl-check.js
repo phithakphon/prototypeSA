@@ -9,7 +9,7 @@ import { loadConfig } from './config.js'
 import { createDb } from './db.js'
 
 const config = loadConfig()
-console.log(`host: ${config.dbHost} | DB_SSL=${config.dbSsl} | CA file configured: ${Boolean(config.dbSslCa)}`)
+console.log(`host: ${config.dbHost} | DB_SSL=${config.dbSsl} | CA configured: ${Boolean(config.dbSslCa || config.dbSslCaPem)}`)
 let ok = true
 
 if (config.dbIsLocal) {
@@ -20,11 +20,11 @@ if (config.dbSsl !== 'verify') {
   console.error('ยังไม่ได้ตั้ง DB_SSL=verify — การเชื่อมต่อเข้ารหัสแต่ไม่ได้ตรวจใบรับรองของเซิร์ฟเวอร์')
   ok = false
 }
-if (!config.dbSslCa) {
-  console.error('ยังไม่ได้ตั้ง DB_SSL_CA (ไฟล์ Supabase Root CA ที่ดาวน์โหลดจาก Supabase Dashboard)')
+if (!config.dbSslCa && !config.dbSslCaPem) {
+  console.error('ยังไม่ได้ตั้ง DB_SSL_CA หรือ DB_SSL_CA_PEM (Supabase Root CA ที่ดาวน์โหลดจาก Supabase Dashboard)')
   ok = false
 } else {
-  const cert = new X509Certificate(readFileSync(config.dbSslCa, 'utf8'))
+  const cert = new X509Certificate(config.dbSslCaPem || readFileSync(config.dbSslCa, 'utf8'))
   const now = new Date()
   const valid = now >= new Date(cert.validFrom) && now <= new Date(cert.validTo)
   console.log(`CA file: subject=${cert.subject.replace(/\n/g, ', ')} | issuer=${cert.issuer.replace(/\n/g, ', ')}`)

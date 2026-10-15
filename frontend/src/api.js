@@ -1,4 +1,5 @@
 import { ApiError } from './apiError'
+import { normalizeApiUrl } from './apiUrl'
 
 export { ApiError }
 
@@ -7,6 +8,9 @@ export { ApiError }
 // Production builds can NEVER use the mock: import.meta.env.PROD forces this to false at build time (and the build
 // fails if VITE_USE_MOCK=true is requested, see vite.config.js), so a forgotten variable cannot ship fake data.
 export const USE_MOCK = !import.meta.env.PROD && import.meta.env.VITE_USE_MOCK !== 'false'
+
+// Backend origin for deployments where the API is on another host (see src/apiUrl.js). Empty = same origin.
+export const API_URL = normalizeApiUrl(import.meta.env.VITE_API_URL)
 
 // Loaded on demand so the mock never has to run (or be bundled) outside mock mode.
 const mockRequest = async (path, opts) => (await import('./mock/handlers')).mockRequest(path, opts)
@@ -37,7 +41,7 @@ export const setUnauthorizedHandler = (fn) => {
 async function realRequest(path, { method, body, token }) {
   let res
   try {
-    res = await fetch(`/api${path}`, {
+    res = await fetch(`${API_URL}/api${path}`, {
       method,
       headers: {
         ...(body ? { 'Content-Type': 'application/json' } : {}),

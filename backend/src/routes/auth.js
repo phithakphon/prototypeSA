@@ -9,7 +9,8 @@ import { parseRegistration } from '../validate.js'
 // Valid bcrypt hash used to keep response time similar when the username does not exist.
 const DUMMY_HASH = bcrypt.hashSync('dummy-password-for-timing', 10)
 
-const MAX_FAILS = 5
+const MAX_FAILS = 5 // per IP + username
+const MAX_FAILS_PER_IP = 30 // across all usernames, so rotating usernames cannot bypass the limit
 const WINDOW_MS = 15 * 60 * 1000
 const MAX_REGISTRATIONS = 10 // per IP per hour
 const REGISTER_WINDOW_MS = 60 * 60 * 1000
@@ -18,6 +19,16 @@ export function authRouter({ db, config }) {
   const router = Router()
   const fails = new Map() // key -> { count, first }
   const registrations = new Map() // ip -> { count, first }
+  const ipFails = new Map() // ip -> { count, first }
+
+  // Entries only matter inside their window; prune so the maps cannot grow without bound.
+  const prune = () => {
+    const now = Date.now()
+    for (const [k, v] of fails) if (now - v.first > WINDOW_MS) fails.delete(k)
+    for (const [k, v] of ipFails) if (now - v.first > WINDOW_MS) ipFails.delete(k)
+    for (const [k, v] of registrations) if (now - v.first > REGISTER_WINDOW_MS) registrations.delete(k)
+  }
+  setInterval(prune, 5 * 60 * 1000).unref()
 
   const keyOf = (req, username) => `${req.ip}|${username.toLowerCase()}`
   const isLocked = (key) => {
@@ -29,10 +40,18 @@ export function authRouter({ db, config }) {
     }
     return f.count >= MAX_FAILS
   }
-  const recordFail = (key) => {
-    const f = fails.get(key)
-    if (!f || Date.now() - f.first > WINDOW_MS) fails.set(key, { count: 1, first: Date.now() })
+  const bump = (map, key) => {
+    const f = map.get(key)
+    if (!f || Date.now() - f.first > WINDOW_MS) map.set(key, { count: 1, first: Date.now() })
     else f.count += 1
+  }
+  const recordFail = (key, ip) => {
+    bump(fails, key)
+    bump(ipFails, ip)
+  }
+  const ipLocked = (ip) => {
+    const f = ipFails.get(ip)
+    return Boolean(f) && Date.now() - f.first <= WINDOW_MS && f.count >= MAX_FAILS_PER_IP
   }
 
   const describe = async (user) => {
@@ -57,13 +76,13 @@ export function authRouter({ db, config }) {
       return next(badRequest('กรุณากรอกชื่อผู้ใช้และรหัสผ่าน'))
     }
     const key = keyOf(req, username.trim())
-    if (isLocked(key)) {
+    if (isLocked(key) || ipLocked(req.ip)) {
       return next(new HttpError(429, 'พยายามเข้าสู่ระบบผิดหลายครั้งเกินไป กรุณาลองใหม่ภายหลัง 15 นาที'))
     }
     const user = (await db.query('SELECT * FROM users WHERE username = $1', [username.trim()])).rows[0]
     const ok = await bcrypt.compare(password, user ? user.password_hash : DUMMY_HASH)
     if (!user || !ok) {
-      recordFail(key)
+      recordFail(key, req.ip)
       return next(new HttpError(401, 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง'))
     }
     fails.delete(key)

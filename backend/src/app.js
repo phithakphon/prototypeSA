@@ -7,15 +7,36 @@ import { accountsRouter } from './routes/accounts.js'
 import { authenticate } from './middleware/auth.js'
 import { HttpError } from './errors.js'
 import { isDbUnavailable } from './db.js'
+import { cors } from './cors.js'
 
 export function createApp({ db, config }) {
   const app = express()
   app.disable('x-powered-by')
+  // Behind a hosting proxy (Render, Railway ...) the real client IP comes from X-Forwarded-For, and the login and
+  // registration rate limits use req.ip. TRUST_PROXY is the exact number of proxy hops (0 = none, the default).
+  app.set('trust proxy', config.trustProxy ?? 0)
   app.use((_req, res, next) => {
     res.set('X-Content-Type-Options', 'nosniff')
+    res.set('X-Frame-Options', 'DENY')
+    res.set('Referrer-Policy', 'no-referrer')
     res.set('Cache-Control', 'no-store')
+    if (config.isProduction) res.set('Strict-Transport-Security', 'max-age=15552000; includeSubDomains')
     next()
   })
+  app.use(cors(config.corsOrigins))
+
+  // Health checks for the hosting platform: no authentication, no data, no internal details.
+  app.get('/health', (_req, res) => res.json({ status: 'ok' })) // liveness: the process is up
+  app.get('/ready', async (_req, res) => {
+    // readiness: the database answers
+    try {
+      await db.query('SELECT 1')
+      res.json({ status: 'ok' })
+    } catch {
+      res.status(503).json({ status: 'unavailable' })
+    }
+  })
+
   app.use(express.json({ limit: '100kb' }))
 
   const auth = authenticate({ db, config })
