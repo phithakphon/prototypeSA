@@ -1,6 +1,6 @@
 # 🛡 แผนรัน Migration 005 (`performance_evaluations`) บน Supabase
 
-> **สถานะ: ยังไม่ได้รัน** กับฐานข้อมูลจริง เอกสารนี้เป็นผลตรวจสอบและแผนที่รอการอนุมัติ
+> **สถานะ: รันบน Supabase แล้ว** (หลังได้รับอนุมัติ ตรวจเงื่อนไขครบ และสำรองข้อมูลแบบ logical backup) ผล: ตาราง `performance_evaluations` ถูกสร้างพร้อม RLS, `schema_migrations` บันทึก `005`, จำนวนแถวของตารางเดิมไม่เปลี่ยน เนื้อหาด้านล่างเก็บไว้เป็นบันทึกขั้นตอนและแผนย้อนกลับ ห้ามรันซ้ำ
 
 ## 1. ผลตรวจ SQL (`backend/src/migrations/005_performance_evaluations.sql`)
 

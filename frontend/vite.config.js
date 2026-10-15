@@ -22,6 +22,8 @@ export default defineConfig(({ command, mode }) => {
       globals: true,
       // integration/ runs against a real backend: use `npm run test:integration`
       include: ['src/**/*.test.{js,jsx}'],
+      // Unit tests always use the mock API, whatever a developer put in .env.local (e.g. VITE_USE_MOCK=false for real-backend dev)
+      env: { VITE_USE_MOCK: 'true', VITE_API_URL: '' },
       // UI tests type and wait for focus/animation timers; give them headroom on a busy machine (observed flaky at the 5 s default)
       testTimeout: 15000,
     },
