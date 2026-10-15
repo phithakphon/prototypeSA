@@ -35,8 +35,8 @@ after(async () => {
 })
 
 test('RBAC: permission matrix matches the frontend contract', () => {
-  assert.deepEqual(permissionsFor('employee').sort(), ['employee:selfOnly', 'employee:view'])
-  assert.deepEqual(permissionsFor('manager').sort(), ['employee:manage', 'employee:search', 'employee:view', 'employee:viewConfidential', 'resignation:manage'])
+  assert.deepEqual(permissionsFor('employee').sort(), ['employee:selfOnly', 'employee:view', 'evaluation:view'])
+  assert.deepEqual(permissionsFor('manager').sort(), ['employee:manage', 'employee:search', 'employee:view', 'employee:viewConfidential', 'evaluation:manage', 'evaluation:view', 'resignation:manage'])
   assert.deepEqual(permissionsFor('hr').sort(), ['account:link', 'employee:search', 'employee:view', 'employee:viewConfidential', 'salary:view'])
   assert.deepEqual(permissionsFor('finance').sort(), ['employee:search', 'employee:view', 'salary:manage', 'salary:view'])
   assert.deepEqual(permissionsFor('executive').sort(), ['employee:search', 'employee:view', 'employee:viewConfidential'])

@@ -12,6 +12,7 @@
     "migrate": "node --env-file-if-exists=.env src/migrate.js",
     "migrate:data": "node --env-file-if-exists=.env src/migrate-data.js",
     "seed": "node --env-file-if-exists=.env src/seed.js",
+    "seed:evaluations": "node --env-file-if-exists=.env src/seed-evaluations.js --demo-only",
     "seed:dry-run": "node --env-file-if-exists=.env src/seed.js --dry-run",
     "bootstrap:user": "node --env-file-if-exists=.env src/bootstrap-user.js",
     "rotate:passwords": "node --env-file-if-exists=.env src/rotate-passwords.js",

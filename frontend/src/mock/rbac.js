@@ -13,6 +13,8 @@ export const ROLE_LABELS = {
 const ALL = Object.keys(ROLE_LABELS)
 
 export const PERMISSIONS = {
+  'evaluation:view': ['employee', 'manager'],
+  'evaluation:manage': ['manager'],
   // Employees may NOT search; they only see their own record (see employee:selfOnly).
   'employee:search': ALL.filter((role) => role !== 'employee'),
   'employee:view': ALL,

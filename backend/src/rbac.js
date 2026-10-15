@@ -21,6 +21,9 @@ const ALL = Object.values(ROLES)
 
 // Mirrors frontend/src/mock/rbac.js (the contract the UI is built against).
 export const PERMISSIONS = {
+  // ผลการประเมินพนักงาน: พนักงานดูของตนเอง (employee:selfOnly), ผู้จัดการดูภายในแผนกของตน; เฉพาะผู้จัดการบันทึกได้
+  'evaluation:view': [ROLES.EMPLOYEE, ROLES.MANAGER],
+  'evaluation:manage': [ROLES.MANAGER],
   // UC-02 ค้นหาข้อมูลพนักงาน: ทุกบทบาทยกเว้นพนักงาน (พนักงานเห็นเฉพาะข้อมูลของตนเอง)
   'employee:search': ALL.filter((r) => r !== ROLES.EMPLOYEE),
   // UC-03 ดูประวัติและรายละเอียดพนักงาน (ข้อมูลทั่วไป + ประวัติ) — พนักงานถูกจำกัดด้วย employee:selfOnly

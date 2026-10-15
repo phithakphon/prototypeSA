@@ -22,7 +22,7 @@ test('config: DATABASE_URL required, never echoed, SSL defaults', () => {
 test('migrations: idempotent, RLS enabled on every table', async () => {
   const db = await createTestDb()
   try {
-    assert.deepEqual(await migrate(db), ['001_init.sql', '002_reinstated_and_username_ci.sql', '003_account_links.sql'])
+    assert.deepEqual(await migrate(db), ['001_init.sql', '002_reinstated_and_username_ci.sql', '003_account_links.sql', '005_performance_evaluations.sql'])
     assert.deepEqual(await migrate(db), [])
     assert.deepEqual(await pendingMigrations(db), [])
     const { rows } = await db.query(

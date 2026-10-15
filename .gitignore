@@ -3,3 +3,4 @@
 !.env.example
 *.log
 .DS_Store
+backend/data/evaluation-demo.db

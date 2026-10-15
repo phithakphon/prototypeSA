@@ -57,8 +57,20 @@
 | 📊 ภาพรวม | สถิติพนักงานและประกาศ (พนักงานทั่วไปไม่เห็นสถิติองค์กร) | `/dashboard` |
 | 🛠 งานดูแลระบบ | migration, สคริปต์สร้างบัญชีแรก, เปลี่ยนรหัสผ่าน, ตรวจ SSL, ย้ายข้อมูลจาก SQLite | คำสั่ง `npm run …` |
 
-หมายเหตุ: หน้า `/evaluations` (ผลการประเมิน) บนสาขานี้ยังเป็นหน้า "ยังไม่เปิดใช้งาน" — ฟีเจอร์ประเมินผลของเพื่อนร่วมทีมอยู่บน `main`
-และ **ยังไม่ได้รวมเข้ากับ PostgreSQL** (ดู [`docs/INTEGRATION-PLAN.md`](docs/INTEGRATION-PLAN.md)) จึงไม่นับว่ามีในสาขานี้
+### ผลการประเมินพนักงาน (`/evaluations`)
+
+ฟีเจอร์จากเพื่อนร่วมทีม (PR #3/#4 บน `main`) ที่ย้ายมาใช้ PostgreSQL แล้ว ผู้จัดการค้นหาด้วยรหัสพนักงาน ดูประวัติ และเพิ่มผลการประเมินได้
+พนักงานดูได้เฉพาะของตนเอง บทบาทอื่นเข้าไม่ได้ (บังคับที่ Express) ผลการประเมินของพนักงานนอกแผนกตรวจสอบบัญชีถูกซ่อน (404) เช่นเดียวกับข้อมูลส่วนอื่น
+ไม่มี endpoint แก้ไข/ลบ
+
+- `GET /api/evaluations/employee?employeeCode=E104` — ค้นหารหัสพนักงาน (ไม่สนตัวพิมพ์)
+- `GET /api/evaluations?employeeCode=E104` — ประวัติผลการประเมิน เรียงใหม่สุดก่อน
+- `POST /api/evaluations` — `employeeCode`, `evaluationPeriod`, `evaluationDate`, `evaluatorName`, `scores` (6 ค่า จำนวนเต็ม 1–5), `deficiencies`, `recommendations`;
+  คะแนนรวมและระดับคำนวณที่ server (HTTP 201)
+
+ข้อมูลตัวอย่าง (สมมติ) อยู่ใน `shared/demoEvaluations.js` ใช้กับโหมด mock และ `seed` ของฐานข้อมูลทดสอบเท่านั้น
+เพิ่มเฉพาะผลการประเมินลงฐานข้อมูลสมมติที่ seed แล้วได้ด้วย `npm run seed:evaluations` (ถูกบล็อกบนฐานข้อมูลระยะไกลและโหมด production)
+ไม่มีการเพิ่มข้อมูลสมมติผ่าน migration หรือการเริ่มเซิร์ฟเวอร์
 
 ## 🧰 เทคโนโลยีที่ใช้
 
@@ -122,7 +134,7 @@ React Frontend ──(HTTPS, Bearer JWT)──▶ Express REST API ──(TLS)�
 
 ## 🗄 โครงสร้างฐานข้อมูล
 
-Supabase PostgreSQL จัดการด้วย migration ใน `backend/src/migrations/` (`001`–`003`) ทุกตารางเปิด RLS และไม่มี policy
+Supabase PostgreSQL จัดการด้วย migration ใน `backend/src/migrations/` (`001`–`003`, `005`) ทุกตารางเปิด RLS และไม่มี policy
 → `anon`/`authenticated` เข้าถึงข้อมูลโดยตรงไม่ได้ เข้าถึงผ่าน Express เท่านั้น
 
 | ตาราง | ใช้ทำอะไร |
@@ -133,10 +145,11 @@ Supabase PostgreSQL จัดการด้วย migration ใน `backend/src
 | `employee_history` | ไทม์ไลน์เหตุการณ์ของพนักงาน: เริ่มงาน, แก้ไข, เปลี่ยนตำแหน่ง/แผนก, ลาออก, กลับเข้าทำงาน |
 | `announcements` | ประกาศที่แสดงบนหน้าหลัก (อ่านอย่างเดียว) |
 | `account_link_audit` | บันทึกว่าใครผูก/ยกเลิกการผูกบัญชีกับพนักงานคนไหน เมื่อไร |
+| `performance_evaluations` | ผลการประเมินพนักงาน (คะแนน 6 เกณฑ์ ช่วง 1–5 ผู้ประเมิน รอบ/วันที่ ข้อบกพร่อง ข้อเสนอแนะ) |
 | `schema_migrations` | บันทึกว่า migration ไหนรันแล้ว |
 
 ความสัมพันธ์: `users.employee_id`, `salaries.employee_id`, `employee_history.employee_id`, `account_link_audit.employee_id` → `employees.id`;
-`salaries.created_by`, `employee_history.created_by`, `account_link_audit.user_id/performed_by` → `users.id`
+`performance_evaluations.employee_id` → `employees.id`; `performance_evaluations.created_by`, `salaries.created_by`, `employee_history.created_by`, `account_link_audit.user_id/performed_by` → `users.id`
 (รายละเอียดคอลัมน์และข้อควรระวังอยู่ที่ [`backend/README.md`](backend/README.md))
 
 ## 🔧 การติดตั้ง
@@ -231,8 +244,9 @@ npm run dev            # Vite proxy ส่ง /api ไปที่ http://localh
 ## 🧪 การทดสอบ
 
 ```bash
-cd backend  && npm test            # API, RBAC, ขอบเขตแผนก, สมัคร/ผูกบัญชี, migration, config ฯลฯ (58 เทสต์)
-cd frontend && npm test            # หน้าจอ + mock API (119 เทสต์)
+cd backend  && npm test            # API, RBAC, ขอบเขตแผนก, สมัคร/ผูกบัญชี, migration, config ฯลฯ (63 เทสต์)
+cd frontend && npm test            # หน้าจอ + mock API (122 เทสต์)
+cd frontend && npm run test:integration  # หน้าจอ + backend จริงบน PostgreSQL ในหน่วยความจำ (6 เทสต์ ข้าม 1)
 cd frontend && npm run lint        # oxlint
 cd frontend && npm run build       # production build
 ```
@@ -288,18 +302,18 @@ prototypeSA/
 | Frontend / Backend / health check / CORS / SPA routing | ✅ เตรียมแล้ว ทดสอบในเครื่องแล้ว |
 | ตรวจใบรับรองฐานข้อมูล (Supabase Root CA) | ⚠️ ต้องตั้งค่าเอง |
 | บัญชีผู้ดูแลคนแรก | ⚠️ ต้องรัน `npm run bootstrap:user` |
-| รวมระบบผลการประเมินจาก `main` เข้ากับ PostgreSQL | ❌ ยังไม่ทำ — [`docs/INTEGRATION-PLAN.md`](docs/INTEGRATION-PLAN.md) |
+| ระบบผลการประเมินบน PostgreSQL (migration 005) | ⚠️ รวมในสาขาแล้ว ทดสอบบน PGlite — **ต้องรัน `npm run migrate` บน Supabase หลังได้รับอนุมัติ** ([`docs/INTEGRATION-PLAN.md`](docs/INTEGRATION-PLAN.md)) |
 
-**สถานะรวม: ยังไม่พร้อม deploy** จนกว่าจะรวมระบบผลการประเมินและตั้งค่า SSL
+**สถานะรวม: ยังไม่พร้อม deploy** จนกว่าจะรัน migration 005 บน Supabase (หลังอนุมัติและสำรองข้อมูล) และตั้งค่า SSL
 
 ## 📈 สถานะการพัฒนา
 
 | ส่วน | สถานะ |
 |---|---|
 | ฟีเจอร์ตาม Use Case (UC-01 ถึง UC-06) + สมัคร/ผูกบัญชี + กลับเข้าทำงาน | ✅ ทำแล้ว ทดสอบอัตโนมัติแล้ว |
-| ย้ายฐานข้อมูลจาก SQLite → Supabase PostgreSQL (migration 001–003) | ✅ ทำแล้ว ใช้งานบน Supabase โปรเจกต์ทดสอบ |
+| ย้ายฐานข้อมูลจาก SQLite → Supabase PostgreSQL (migration 001–003; 005 สำหรับผลการประเมิน) | ✅ ทำแล้ว ใช้งานบน Supabase โปรเจกต์ทดสอบ |
 | ตัวช่วย deploy (CORS, health, SPA, env) | ✅ พร้อม รอผู้ดูแลตั้งค่าและ deploy |
-| ระบบผลการประเมินพนักงาน | ⏳ อยู่บน `main` (SQLite) — ต้องย้ายเป็น PostgreSQL |
+| ระบบผลการประเมินพนักงาน | ✅ ย้ายเป็น PostgreSQL แล้ว (migration 005) — ⏳ รอรันบน Supabase หลังอนุมัติ |
 | ทดสอบหน้าจอผ่านเบราว์เซอร์ด้วยมือ | ⏳ ยังไม่ได้ทำ |
 | จัดการประกาศ (เพิ่ม/แก้ไข) | ⏳ ยังไม่มี (อ่านอย่างเดียว) |
 | หน้า/คำสั่ง rotate รหัสผ่านบนฐานข้อมูลจริง | ⏳ รอผู้ดูแลอนุมัติ |

@@ -20,6 +20,8 @@ export default defineConfig(({ command, mode }) => {
       environment: 'jsdom',
       setupFiles: './src/test/setup.js',
       globals: true,
+      // integration/ runs against a real backend: use `npm run test:integration`
+      include: ['src/**/*.test.{js,jsx}'],
       // UI tests type and wait for focus/animation timers; give them headroom on a busy machine (observed flaky at the 5 s default)
       testTimeout: 15000,
     },

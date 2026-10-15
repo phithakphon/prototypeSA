@@ -156,6 +156,27 @@ route('POST', '/accounts/:id/unlink', ({ user, params }) => {
   return { account: { id: acc.id, username: acc.username, role: acc.role, employeeId: null } }
 })
 
+// Fictional evaluation fixtures belong only to the demo data source; writes require the backend.
+const evaluationEmployee = (user, query) => {
+  requirePerm(user, 'evaluation:view')
+  const code = (query.get('employeeCode') || '').trim().toUpperCase()
+  const employee = db.employees.find(e => e.employeeCode.toUpperCase() === code && (inScope(e) || e.id === user.employeeId))
+  if (!employee) throw notFound('ไม่พบข้อมูลพนักงาน')
+  if (!can(user.role, 'evaluation:manage') && employee.id !== user.employeeId) throw forbidden('คุณดูได้เฉพาะผลการประเมินของตนเองเท่านั้น')
+  return toPublic(employee)
+}
+route('GET', '/evaluations/employee', ({ user, query }) => ({ employee: evaluationEmployee(user, query) }))
+route('GET', '/evaluations', ({ user, query }) => {
+  const employee = evaluationEmployee(user, query)
+  const evaluations = db.evaluations.filter(record => record.employeeId === employee.id)
+    .sort((a, b) => b.evaluationDate.localeCompare(a.evaluationDate) || b.id - a.id)
+  return { employee, evaluations }
+})
+route('POST', '/evaluations', ({ user }) => {
+  requirePerm(user, 'evaluation:manage')
+  throw new ApiError(503, 'การบันทึกผลการประเมินต้องเชื่อมต่อระบบฐานข้อมูลจริง')
+})
+
 route('GET', '/dashboard/summary', ({ user }) => {
   const staff = scopedEmployees()
   const selfOnly = can(user.role, 'employee:selfOnly')

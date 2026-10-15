@@ -1,3 +1,4 @@
+import { seedDemoEvaluations } from './demo-evaluation-seed.js'
 // Test/development seed data. NOT for production: it creates well-known accounts.
 import bcrypt from 'bcrypt'
 import { fileURLToPath } from 'node:url'
@@ -53,6 +54,7 @@ export async function seed(db, password = TEST_PASSWORD) {
       await tx.query('INSERT INTO announcements (title, published_at) VALUES ($1, $2)', [title, date])
     }
   })
+  await seedDemoEvaluations(db)
 }
 
 // Read-only preview of what `seed` would insert. Runs SELECTs only (never migrates, never writes).

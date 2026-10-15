@@ -1,3 +1,4 @@
+import { evaluationsRouter } from './routes/evaluations.js'
 import express from 'express'
 import { authRouter } from './routes/auth.js'
 import { employeesRouter } from './routes/employees.js'
@@ -42,6 +43,7 @@ export function createApp({ db, config }) {
   const auth = authenticate({ db, config })
   app.use('/api/auth', authRouter({ db, config }))
   app.use('/api/dashboard', auth, dashboardRouter({ db }))
+  app.use('/api/evaluations', auth, evaluationsRouter({ db }))
   app.use('/api/employees', auth, employeesRouter({ db }))
   app.use('/api/accounts', auth, accountsRouter({ db }))
   app.use('/api', auth, salariesRouter({ db }))
