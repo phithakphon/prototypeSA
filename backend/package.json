@@ -13,6 +13,8 @@
     "migrate:data": "node --env-file=.env src/migrate-data.js",
     "seed": "node --env-file=.env src/seed.js",
     "seed:dry-run": "node --env-file=.env src/seed.js --dry-run",
+    "rotate:passwords": "node --env-file=.env src/rotate-passwords.js",
+    "db:ssl-check": "node --env-file=.env src/ssl-check.js",
     "test": "node --test test/*.test.js"
   },
   "dependencies": {

@@ -1,11 +1,15 @@
 import { ApiError } from './apiError'
-import { mockRequest } from './mock/handlers'
 
 export { ApiError }
 
-// Frontend-only phase: the app talks to an in-memory mock (src/mock) by default.
-// To use the real backend later, set VITE_USE_MOCK=false (requests go to /api, proxied by vite.config.js).
-export const USE_MOCK = import.meta.env.VITE_USE_MOCK !== 'false'
+// Mock mode (src/mock) is for development and tests only. In development it is the default; set VITE_USE_MOCK=false
+// (requests go to /api, proxied by vite.config.js) to use the real backend.
+// Production builds can NEVER use the mock: import.meta.env.PROD forces this to false at build time (and the build
+// fails if VITE_USE_MOCK=true is requested, see vite.config.js), so a forgotten variable cannot ship fake data.
+export const USE_MOCK = !import.meta.env.PROD && import.meta.env.VITE_USE_MOCK !== 'false'
+
+// Loaded on demand so the mock never has to run (or be bundled) outside mock mode.
+const mockRequest = async (path, opts) => (await import('./mock/handlers')).mockRequest(path, opts)
 
 const TOKEN_KEY = 'ems_token'
 

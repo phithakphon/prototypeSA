@@ -6,6 +6,13 @@ import { createApp } from './app.js'
 const config = loadConfig()
 const db = createDb(config)
 
+if (config.ignoredUrlParams.length) {
+  console.warn(`เตือน: ละเว้นพารามิเตอร์ SSL ใน DATABASE_URL (${config.ignoredUrlParams.join(', ')}) — ใช้ DB_SSL / DB_SSL_CA แทน`)
+}
+if (!config.dbIsLocal && config.dbSsl !== 'verify') {
+  console.warn('เตือน: DB_SSL ไม่ใช่ verify — การเชื่อมต่อเข้ารหัสแต่ไม่ตรวจใบรับรองเซิร์ฟเวอร์ (ตั้ง DB_SSL=verify + DB_SSL_CA)')
+}
+
 try {
   await db.query('SELECT 1')
   if (config.autoMigrate) {
