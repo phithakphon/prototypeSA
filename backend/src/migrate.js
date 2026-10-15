@@ -1,35 +1,44 @@
-import { existsSync, readdirSync, readFileSync } from 'node:fs'
+import { readdirSync, readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { join, dirname } from 'node:path'
-import { openDb } from './db.js'
+import { loadConfig } from './config.js'
+import { createDb } from './db.js'
 
 const dir = join(dirname(fileURLToPath(import.meta.url)), 'migrations')
+const files = () => readdirSync(dir).filter((f) => f.endsWith('.sql')).sort()
 
-export function migrate(db) {
-  db.exec(
-    "CREATE TABLE IF NOT EXISTS schema_migrations (name TEXT PRIMARY KEY, applied_at TEXT NOT NULL DEFAULT (datetime('now')))",
-  )
-  const done = new Set(db.prepare('SELECT name FROM schema_migrations').all().map((r) => r.name))
+const ENSURE_TABLE =
+  'CREATE TABLE IF NOT EXISTS schema_migrations (name TEXT PRIMARY KEY, applied_at TIMESTAMPTZ NOT NULL DEFAULT now())'
+
+export async function pendingMigrations(db) {
+  await db.exec(ENSURE_TABLE)
+  const done = new Set((await db.query('SELECT name FROM schema_migrations')).rows.map((r) => r.name))
+  return files().filter((f) => !done.has(f))
+}
+
+// Applies pending migrations one by one, each in its own transaction (plain CREATE TABLE, so an
+// already-existing table makes the migration fail and roll back instead of being overwritten).
+export async function migrate(db) {
   const applied = []
-  for (const file of readdirSync(dir).filter((f) => f.endsWith('.sql')).sort()) {
-    if (done.has(file)) continue
-    db.exec('BEGIN')
-    try {
-      const sqliteFile = join(dir, 'sqlite', file)
-      db.exec(readFileSync(existsSync(sqliteFile) ? sqliteFile : join(dir, file), 'utf8'))
-      db.prepare('INSERT INTO schema_migrations (name) VALUES (?)').run(file)
-      db.exec('COMMIT')
-    } catch (err) {
-      db.exec('ROLLBACK')
-      throw err
-    }
+  for (const file of await pendingMigrations(db)) {
+    await db.transaction(async (tx) => {
+      await tx.exec(readFileSync(join(dir, file), 'utf8'))
+      await tx.query('INSERT INTO schema_migrations (name) VALUES ($1)', [file])
+    })
     applied.push(file)
   }
   return applied
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  const db = openDb(process.env.DB_PATH || './data/app.db')
-  const applied = migrate(db)
-  console.log(applied.length ? `migrate แล้ว: ${applied.join(', ')}` : 'ฐานข้อมูลเป็นปัจจุบันแล้ว')
+  const db = createDb(loadConfig())
+  try {
+    const applied = await migrate(db)
+    console.log(applied.length ? `migrate แล้ว: ${applied.join(', ')}` : 'ฐานข้อมูลเป็นปัจจุบันแล้ว')
+  } catch (err) {
+    console.error('migrate ไม่สำเร็จ:', err.message)
+    process.exitCode = 1
+  } finally {
+    await db.close()
+  }
 }

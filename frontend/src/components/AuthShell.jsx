@@ -1,6 +1,6 @@
 import { useRef } from 'react'
-import { FileSearch } from 'lucide-react'
 import BuildingIllustration from './BuildingIllustration'
+import BrandLogo from './BrandLogo'
 import usePointerEffects from '../hooks/usePointerEffects'
 
 // Shared two-column frame of the Login and Register pages:
@@ -22,9 +22,7 @@ export default function AuthShell({ eyebrow = 'EMPLOYEE MANAGEMENT SYSTEM', head
 
       <section className="login-banner" aria-label="ข้อมูลบริษัท">
         <header className="company-brand">
-          <span className="brand-logo" aria-hidden="true">
-            <FileSearch size={26} strokeWidth={1.75} />
-          </span>
+          <BrandLogo size={52} />
           <div>
             <strong>บริษัท ศุภชัยสอบบัญชี</strong>
             <small>SUPACHAI AUDITING CO., LTD.</small>

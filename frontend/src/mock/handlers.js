@@ -81,11 +81,80 @@ route('POST', '/auth/register', ({ body }) => {
   }
 
   // in-memory only (never written to localStorage); a real backend stores a bcrypt hash
-  db.users.push({ id: nextId('users'), username, password: b.password, role: 'employee', employeeId: null })
+  db.users.push({ id: nextId('users'), username, password: b.password, role: 'employee', employeeId: null, createdAt: new Date().toISOString() })
   return { username, role: 'employee', roleLabel: ROLE_LABELS.employee, mock: true }
 }, { auth: false })
 
 route('GET', '/auth/me', ({ user }) => ({ user: describeUser(user) }))
+
+// HR workflow (mock of backend/src/routes/accounts.js): verify a self-registered account and link it to an employee.
+// The role is never changed; only unlinked 'employee' accounts can be linked, to an active, unclaimed employee of
+// the supported department, and the employee code must be re-typed as verification.
+route('GET', '/accounts/pending', ({ user }) => {
+  requirePerm(user, 'account:link')
+  return {
+    accounts: db.users
+      .filter((u) => u.role === 'employee' && u.employeeId === null)
+      .map((u) => ({ id: u.id, username: u.username, createdAt: u.createdAt || null })),
+  }
+})
+
+route('GET', '/accounts/linkable-employees', ({ user, query }) => {
+  requirePerm(user, 'account:link')
+  const q = (query.get('q') || '').trim().toLowerCase()
+  const taken = new Set(db.users.map((u) => u.employeeId).filter(Boolean))
+  const rows = scopedEmployees()
+    .filter((e) => e.status === 'active' && !taken.has(e.id))
+    .filter((e) => !q || `${e.employeeCode} ${e.firstName} ${e.lastName} ${e.firstName}${e.lastName}`.toLowerCase().includes(q))
+    .sort((a, b) => a.employeeCode.localeCompare(b.employeeCode))
+  return { employees: rows.slice(0, 50).map(toPublic) }
+})
+
+route('POST', '/accounts/:id/link', ({ user, params, body }) => {
+  requirePerm(user, 'account:link')
+  const acc = db.users.find((u) => u.id === Number(params.id))
+  const b = body && typeof body === 'object' ? body : {}
+  const employeeId = Number(b.employeeId)
+  if (!Number.isInteger(employeeId) || employeeId <= 0) throw new ApiError(400, 'กรุณาเลือกพนักงาน', { employeeId: 'กรุณาเลือกพนักงาน' })
+  if (acc && acc.id === user.id) throw forbidden('ไม่สามารถผูกบัญชีของตนเองได้')
+  if (!acc) throw notFound('ไม่พบบัญชีผู้ใช้')
+  if (acc.role !== 'employee') throw forbidden('ผูกได้เฉพาะบัญชีบทบาทพนักงานเท่านั้น')
+  if (acc.employeeId !== null) throw conflict('บัญชีนี้ถูกผูกกับพนักงานแล้ว')
+  const emp = scopedEmployees().find((e) => e.id === employeeId)
+  if (!emp) throw notFound('ไม่พบข้อมูลพนักงาน')
+  if (String(b.employeeCode ?? '').trim().toUpperCase() !== emp.employeeCode) {
+    throw new ApiError(400, 'รหัสพนักงานที่ยืนยันไม่ตรงกับพนักงานที่เลือก', { employeeCode: 'รหัสพนักงานไม่ตรงกับพนักงานที่เลือก' })
+  }
+  if (emp.status !== 'active') throw conflict('ไม่สามารถผูกบัญชีกับพนักงานที่ลาออกแล้ว')
+  if (db.users.some((u) => u.employeeId === emp.id)) throw conflict('พนักงานคนนี้ถูกผูกกับบัญชีอื่นแล้ว')
+  acc.employeeId = emp.id
+  return { account: { id: acc.id, username: acc.username, role: acc.role, employeeId: emp.id, employeeCode: emp.employeeCode } }
+})
+
+route('GET', '/accounts/linked', ({ user }) => {
+  requirePerm(user, 'account:link')
+  const inDept = new Map(scopedEmployees().map((e) => [e.id, e]))
+  return {
+    accounts: db.users
+      .filter((u) => u.role === 'employee' && inDept.has(u.employeeId))
+      .map((u) => {
+        const e = inDept.get(u.employeeId)
+        return { id: u.id, username: u.username, employeeId: e.id, employeeCode: e.employeeCode, firstName: e.firstName, lastName: e.lastName }
+      })
+      .sort((a, b) => a.employeeCode.localeCompare(b.employeeCode)),
+  }
+})
+
+// Undo a wrong link. Privileged accounts can never be unlinked here.
+route('POST', '/accounts/:id/unlink', ({ user, params }) => {
+  requirePerm(user, 'account:link')
+  const acc = db.users.find((u) => u.id === Number(params.id))
+  if (!acc) throw notFound('ไม่พบบัญชีผู้ใช้')
+  if (acc.role !== 'employee') throw forbidden('ยกเลิกการผูกได้เฉพาะบัญชีบทบาทพนักงานเท่านั้น')
+  if (acc.employeeId === null) throw conflict('บัญชีนี้ยังไม่ได้ผูกกับพนักงาน')
+  acc.employeeId = null
+  return { account: { id: acc.id, username: acc.username, role: acc.role, employeeId: null } }
+})
 
 // Fictional evaluation fixtures belong only to the demo data source; writes require the backend.
 const evaluationEmployee = (user, query) => {

@@ -19,22 +19,29 @@ export const ROLE_LABELS = {
 
 const ALL = Object.values(ROLES)
 
+// Mirrors frontend/src/mock/rbac.js (the contract the UI is built against).
 export const PERMISSIONS = {
-  'evaluation:view': ['employee', 'manager'],
-  'evaluation:manage': ['manager'],
-  // UC-02 ค้นหาข้อมูลพนักงาน
-  'employee:search': ALL,
-  // UC-03 ดูประวัติและรายละเอียดพนักงาน (ข้อมูลทั่วไป + ประวัติ)
+  // ผลการประเมินพนักงาน: พนักงานดูของตนเอง (employee:selfOnly), ผู้จัดการดูภายในแผนกของตน; เฉพาะผู้จัดการบันทึกได้
+  'evaluation:view': [ROLES.EMPLOYEE, ROLES.MANAGER],
+  'evaluation:manage': [ROLES.MANAGER],
+  // UC-02 ค้นหาข้อมูลพนักงาน: ทุกบทบาทยกเว้นพนักงาน (พนักงานเห็นเฉพาะข้อมูลของตนเอง)
+  'employee:search': ALL.filter((r) => r !== ROLES.EMPLOYEE),
+  // UC-03 ดูประวัติและรายละเอียดพนักงาน (ข้อมูลทั่วไป + ประวัติ) — พนักงานถูกจำกัดด้วย employee:selfOnly
   'employee:view': ALL,
-  // UC-03 ข้อมูลส่วนบุคคลที่เป็นความลับของ "ผู้อื่น": เฉพาะผู้จัดการ (ผู้ดูแลข้อมูลตาม UC-04)
-  // ผู้ใช้ทุกคนดูข้อมูลความลับ/เงินเดือนของ "ตนเอง" ได้เสมอ (ตรวจด้วยการเทียบ employee_id)
-  'employee:viewConfidential': ['manager'],
+  // บทบาทที่เข้าถึงได้เฉพาะระเบียนของตนเอง (ทั้งรายละเอียด ประวัติ และเงินเดือน)
+  'employee:selfOnly': [ROLES.EMPLOYEE],
+  // ข้อมูลส่วนบุคคลที่เป็นความลับของ "ผู้อื่น" (ผู้ใช้ทุกคนดูของตนเองได้เสมอ ตรวจด้วยการเทียบ employee_id)
+  'employee:viewConfidential': [ROLES.MANAGER, ROLES.HR, ROLES.EXECUTIVE],
   // UC-04 จัดการข้อมูลพนักงาน
-  'employee:manage': ['manager'],
-  // UC-06 จัดการพนักงานที่ลาออก
-  'resignation:manage': ['manager'],
+  'employee:manage': [ROLES.MANAGER],
+  // UC-06 จัดการพนักงานที่ลาออก (รวมการกลับเข้าทำงาน)
+  'resignation:manage': [ROLES.MANAGER],
   // UC-05 จัดการเงินเดือน (ดู/เพิ่ม/แก้ไข ของทุกคน)
-  'salary:manage': ['finance'],
+  'salary:manage': [ROLES.FINANCE],
+  // ดูเงินเดือนของผู้อื่นแบบอ่านอย่างเดียว (ไม่เพิ่ม/แก้ไข)
+  'salary:view': [ROLES.FINANCE, ROLES.HR],
+  // ตรวจสอบและผูกบัญชีที่สมัครเองกับระเบียนพนักงาน (ไม่เปลี่ยนบทบาทของบัญชี)
+  'account:link': [ROLES.HR],
 }
 
 export function permissionsFor(role) {

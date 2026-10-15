@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <defs>
+    <linearGradient id="tile" x1="6" y1="4" x2="58" y2="62" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#d4ecf9"/>
+    </linearGradient>
+    <linearGradient id="ink" x1="10" y1="14" x2="56" y2="48" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#0a5fa5"/>
+      <stop offset="0.55" stop-color="#1597d8"/>
+      <stop offset="1" stop-color="#22cfe6"/>
+    </linearGradient>
+    <filter id="lift" x="-20%" y="-20%" width="140%" height="150%" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="1.2" stdDeviation="0.9" flood-color="#054870" flood-opacity="0.28"/>
+    </filter>
+  </defs>
+  <!-- soft white / light-blue tile -->
+  <rect x="2" y="2" width="60" height="60" rx="17" fill="url(#tile)"/>
+  <rect x="2.8" y="2.8" width="58.4" height="58.4" rx="16.2" stroke="#8ec9ea" stroke-opacity="0.9" stroke-width="1.4"/>
+  <g filter="url(#lift)">
+    <!-- flow connectors: S -> A, and the A crossbar -->
+    <g stroke="#1280c4" stroke-opacity="0.75" stroke-width="1.7" stroke-linecap="round">
+      <path d="M31.8 21.8H41.4"/>
+      <path d="M37 37.2H52"/>
+    </g>
+    <!-- S and A letterforms -->
+    <g stroke="url(#ink)" stroke-width="6.2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M28.5 21.8C27.4 18.2 23.6 16.6 20 16.6c-4.4 0-7.8 2.4-7.8 6.1 0 8.3 16.6 5.5 16.6 15.6 0 4.3-4 7.1-8.6 7.1-4.6 0-7.9-2.3-9-6.2"/>
+      <path d="M34 45.4 44.5 16.8 55 45.4"/>
+    </g>
+  </g>
+  <!-- flowchart nodes: circle (start), diamond (decision), square (process), dot (link) -->
+  <g stroke="#0a6aa8" stroke-width="1.7" stroke-linejoin="round">
+    <circle cx="28.5" cy="21.8" r="3.4" fill="#fff"/>
+    <path d="M11.2 34.9 15.5 39.2 11.2 43.5 6.9 39.2Z" fill="#22cfe6"/>
+    <rect x="41.3" y="34" width="6.4" height="6.4" rx="1.6" fill="#fff"/>
+  </g>
+  <circle cx="42.3" cy="21.8" r="2.1" fill="#22cfe6" stroke="#0a6aa8" stroke-width="1.3"/>
+</svg>

@@ -79,3 +79,23 @@ export function parseResignation(body) {
   if (Object.keys(errors).length) throw badRequest('ข้อมูลการลาออกไม่ถูกต้อง', errors)
   return { resignationDate: b.resignationDate, reason: reason || null }
 }
+
+// Same rules as frontend/src/auth/registerRules.js; the browser check is only a convenience, this one is authoritative.
+export function parseRegistration(body) {
+  const b = body && typeof body === 'object' ? body : {}
+  const errors = {}
+  const username = typeof b.username === 'string' ? b.username.trim() : ''
+  const password = typeof b.password === 'string' ? b.password : ''
+  if (!username) errors.username = 'กรุณากรอกชื่อผู้ใช้'
+  else if (!/^[A-Za-z][A-Za-z0-9._-]{3,19}$/.test(username)) {
+    errors.username = 'ชื่อผู้ใช้ต้องมี 4-20 ตัวอักษร ขึ้นต้นด้วยตัวอักษร และใช้ได้เฉพาะ a-z, 0-9, จุด ขีดกลาง และขีดล่าง'
+  }
+  if (!password) errors.password = 'กรุณากรอกรหัสผ่าน'
+  else if (password.length < 8 || password.length > 64 || Buffer.byteLength(password) > 72 ||
+    !/[a-z]/.test(password) || !/[A-Z]/.test(password) || !/[0-9]/.test(password)) {
+    errors.password = 'รหัสผ่านต้องยาว 8-64 ตัวอักษร และมีตัวพิมพ์เล็ก ตัวพิมพ์ใหญ่ และตัวเลข'
+  }
+  if (!errors.password && b.confirmPassword !== password) errors.confirmPassword = 'รหัสผ่านที่ยืนยันไม่ตรงกัน'
+  if (Object.keys(errors).length) throw badRequest('ข้อมูลการสมัครไม่ถูกต้อง กรุณาตรวจสอบอีกครั้ง', errors)
+  return { username, password }
+}

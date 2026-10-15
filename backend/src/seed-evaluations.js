@@ -1,14 +1,22 @@
 // Explicit additive command for an existing fictional development database only.
-import { existsSync } from 'node:fs'
-import { openDb } from './db.js'
+import { loadConfig } from './config.js'
+import { createDb } from './db.js'
 import { seedDemoEvaluations } from './demo-evaluation-seed.js'
 
 if (process.env.NODE_ENV === 'production' || !process.argv.includes('--demo-only')) {
   throw new Error('ใช้คำสั่งนี้เฉพาะฐานข้อมูลสมมติ และระบุ --demo-only ห้ามใช้กับข้อมูลจริง')
 }
-const path = process.env.DB_PATH || './data/app.db'
-if (!existsSync(path)) throw new Error('ไม่พบฐานข้อมูลตัวอย่าง กรุณาสร้างด้วย seed ของระบบก่อน')
-const db = openDb(path)
+const config = loadConfig()
+// Same guard as seed.js: never write demo rows to a remote database (e.g. Supabase) by accident.
+if (!config.dbIsLocal && process.env.ALLOW_REMOTE_SEED !== 'yes') {
+  throw new Error('DATABASE_URL ชี้ไปยังฐานข้อมูลระยะไกล — คำสั่งนี้ถูกบล็อก (ต้องตั้ง ALLOW_REMOTE_SEED=yes สำหรับฐานข้อมูลทดสอบเท่านั้น)')
+}
+const db = createDb(config)
 try {
-  console.log(`เพิ่มผลการประเมินสมมติ ${seedDemoEvaluations(db)} รายการ โดยไม่แก้ไขข้อมูลเดิม`)
-} finally { db.close() }
+  console.log(`เพิ่มผลการประเมินสมมติ ${await seedDemoEvaluations(db)} รายการ โดยไม่แก้ไขข้อมูลเดิม`)
+} catch (err) {
+  console.error('seed ผลการประเมินไม่สำเร็จ:', err.message)
+  process.exitCode = 1
+} finally {
+  await db.close()
+}

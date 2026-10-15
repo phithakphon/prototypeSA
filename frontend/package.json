@@ -8,7 +8,8 @@
     "build": "vite build",
     "lint": "oxlint",
     "preview": "vite preview",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:integration": "node integration/run.mjs"
   },
   "dependencies": {
     "@fontsource/kanit": "^5.3.0",

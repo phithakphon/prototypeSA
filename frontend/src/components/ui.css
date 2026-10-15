@@ -177,3 +177,9 @@ td.actions-cell { text-align: right; white-space: nowrap; }
 .modal-head h2 { min-width: 0; overflow-wrap: anywhere; }
 .form-grid > *, .modal-body .field { min-width: 0; }
 .modal-foot .btn { min-width: 0; }
+
+/* account linking dialog: candidate list */
+fieldset.field { border: 0; padding: 0; margin: 12px 0 0; }
+fieldset.field legend { font-weight: 600; margin-bottom: 8px; padding: 0; }
+.radio-row { display: flex; align-items: center; gap: 8px; padding: 10px 12px; min-height: 44px; border: 1px solid var(--border, #d9dee7); border-radius: 8px; margin-bottom: 6px; cursor: pointer; }
+.radio-row input { width: 20px; height: 20px; }

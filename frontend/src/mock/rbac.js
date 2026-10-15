@@ -27,6 +27,8 @@ export const PERMISSIONS = {
   'salary:manage': ['finance'],
   // read-only view of every employee's salary (no add / edit)
   'salary:view': ['finance', 'hr'],
+  // verify a self-registered account and link it to an employee record (never changes the account role)
+  'account:link': ['hr'],
 }
 
 export const permissionsFor = (role) => Object.keys(PERMISSIONS).filter((p) => PERMISSIONS[p].includes(role))

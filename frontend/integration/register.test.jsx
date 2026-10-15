@@ -12,22 +12,19 @@ async function fill(user, username) {
   await user.type(screen.getByLabelText('ยืนยันรหัสผ่าน'), 'Secret123')
 }
 
-it('registers via PostgreSQL, requests finance without receiving its permissions, and logs in after remount', async () => {
+it('registers via PostgreSQL as an unlinked employee without extra permissions, and logs in after remount', async () => {
   expect(USE_MOCK).toBe(false)
   localStorage.clear()
   const user = userEvent.setup()
   const view = mount('/register')
   await fill(user, 'ui.registration')
-  await user.selectOptions(screen.getByRole('combobox', { name: 'บทบาทที่ต้องการ' }), 'finance')
   await user.click(screen.getByRole('button', { name: 'สมัครบัญชี' }))
   await screen.findByRole('heading', { name: 'สมัครบัญชีสำเร็จ' }, { timeout: 5000 })
   expect(screen.getByText('พนักงาน', { selector: 'strong' })).toBeInTheDocument()
-  expect(screen.getByText('รอผู้ดูแลตรวจสอบ')).toBeInTheDocument()
-  expect(screen.getByText(/บทบาทที่ขอ: ฝ่ายการเงิน/)).toBeInTheDocument()
   expect(screen.queryByText('โหมดสาธิต')).not.toBeInTheDocument()
   view.unmount()
   const nextView = mount('/login')
-  await user.type(screen.getByLabelText('ชื่อผู้ใช้'), 'UI.REGISTRATION')
+  await user.type(screen.getByLabelText('ชื่อผู้ใช้'), 'ui.registration')
   await user.type(screen.getByLabelText('รหัสผ่าน'), 'Secret123')
   await user.click(screen.getByRole('button', { name: /เข้าสู่ระบบ/ }))
   await screen.findByRole('heading', { name: 'หน้าหลัก' }, { timeout: 5000 })
